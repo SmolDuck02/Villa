@@ -117,6 +117,16 @@
             margin-top: 5px;
             align-self: flex-end;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            text-align: right;
+        }
+        
+        .status-dot {
+            height: 10px;
+            width: 10px;
+            background-color: #eee;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
         }
 
         .quest-title {
@@ -518,7 +528,7 @@
             <div style="display:flex; flex-direction:column; align-items:flex-end;">
                 <button class="inventory-btn" id="open-inventory" title="Open Inventory">🎒</button>
                 <button class="almanac-btn" id="open-almanac" title="Open Almanac">📖</button>
-                <div class="online-count" id="online-count">Online: 1</div>
+                <div class="online-count" id="online-count"><span class="status-dot" id="status-dot"></span>Online: 1</div>
             </div>
         </div>
         
@@ -567,7 +577,7 @@
  * ANIMAL VILLAGE 3D: MMO WORLD
  */
 
-const USER_FIREBASE_CONFIG =  {
+const USER_FIREBASE_CONFIG = {
   apiKey: "AIzaSyB08cbhz70iS1seJOfRWkiKQMKeFh2WtYw",
   authDomain: "villa-5b3c0.firebaseapp.com",
   projectId: "villa-5b3c0",
@@ -575,7 +585,7 @@ const USER_FIREBASE_CONFIG =  {
   messagingSenderId: "666633719020",
   appId: "1:666633719020:web:df1570c4bea10cfb3669c9",
   measurementId: "G-KHBRVW3NHZ"
-};
+}; 
 
 const CONFIG = {
     worldSize: 1600,
@@ -707,6 +717,9 @@ class Game3D {
         this.lastPosUpdate = 0;
         this.db = null;
         this.isOffline = false;
+        this.connecting = true;
+        
+        this.appId = 'animal-village-global';
 
         this.initLights();
         this.initWorld();
@@ -732,17 +745,17 @@ class Game3D {
                         }
                     } catch (e) { }
                 }
+                
                 if (!firebaseConfig) {
                     this.startOfflineMode();
                     return;
                 }
 
-                const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc } = window.firebaseApp;
+                const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, serverTimestamp } = window.firebaseApp;
                 const app = initializeApp(firebaseConfig);
                 const auth = getAuth(app);
                 this.db = getFirestore(app);
-                this.appId = typeof __app_id !== 'undefined' ? __app_id : 'default';
-
+                
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
@@ -750,10 +763,14 @@ class Game3D {
                 }
 
                 this.userId = auth.currentUser.uid;
-
+                this.connecting = false;
+                
                 const playersRef = collection(this.db, 'artifacts', this.appId, 'public', 'data', 'players');
                 onSnapshot(playersRef, (snapshot) => {
-                    document.getElementById('online-count').innerText = `Online: ${snapshot.size}`;
+                    const onlineCount = snapshot.size;
+                    const countEl = document.getElementById('online-count');
+                    
+                    countEl.innerHTML = `<span class="status-dot" style="background-color:#2ecc71"></span>Online: ${onlineCount}`;
 
                     snapshot.docChanges().forEach((change) => {
                         const pid = change.doc.id;
@@ -763,6 +780,12 @@ class Game3D {
                         if (change.type === "modified") this.updateRemotePlayer(pid, change.doc.data());
                         if (change.type === "removed") this.removeRemotePlayer(pid);
                     });
+                }, (error) => {
+                    // Suppress harmless permission errors if we just haven't set up the DB yet
+                    if (error.code !== 'permission-denied') {
+                         console.warn("Firebase Error:", error);
+                    }
+                    this.startOfflineMode(); 
                 });
 
                 window.addEventListener('beforeunload', () => {
@@ -774,9 +797,12 @@ class Game3D {
     }
 
     startOfflineMode() {
+        if (this.isOffline) return;
         this.isOffline = true;
-        document.getElementById('online-count').innerText = "Offline Mode (Bots)";
-        this.showToast("Server unavailable. Bots activated!");
+        this.connecting = false;
+        const countEl = document.getElementById('online-count');
+        countEl.innerHTML = `<span class="status-dot" style="background-color:#e74c3c"></span>Offline (Bots)`;
+        this.showToast("No server config found. Started Offline Mode.");
         this.spawnBots();
     }
 
@@ -788,11 +814,10 @@ class Game3D {
             
             const bot = this.remotePlayers[`bot_${i}`];
             bot.isBot = true;
-            bot.timer = 0;
             
             setInterval(() => {
                 if(Math.random() < 0.3) {
-                    this.showChatBubble(bot.mesh, ["Hello!", "Nice boat!", "Where is the lion?", "Zoom zoom"][Math.floor(Math.random()*4)]);
+                    this.showChatBubble(bot.mesh, ["Hello!", "Nice boat!", "Zoom zoom", "Anyone here?"][Math.floor(Math.random()*4)]);
                 }
             }, 5000 + Math.random() * 5000);
         }
@@ -814,7 +839,6 @@ class Game3D {
         this.remotePlayers[id] = {
             mesh: spriteObj.group,
             chatSprite: chatSprite,
-            chatCanvas: chatCanvas,
             targetPos: new THREE.Vector3(data.x, data.y || 0, data.z)
         };
     }
@@ -840,12 +864,20 @@ class Game3D {
         this.showChatBubble(this.player, text);
         if (this.userId && this.db && !this.isOffline) {
              const pRef = window.firebaseApp.doc(this.db, 'artifacts', this.appId, 'public', 'data', 'players', this.userId);
-             window.firebaseApp.setDoc(pRef, { msg: text }, { merge: true });
+             window.firebaseApp.setDoc(pRef, { msg: text }, { merge: true }).catch(err => {
+                 if(err.code === 'permission-denied') this.startOfflineMode();
+             });
         }
     }
 
     showChatBubble(playerMesh, text) {
-        const chatSprite = playerMesh.children.find(c => c.material && c.material.map && c.material.map.image && c.material.map.image.width === 256);
+        let chatSprite = null;
+        playerMesh.children.forEach(c => {
+             if (c.material && c.material.map && c.material.map.image && c.material.map.image.width === 256) {
+                 chatSprite = c;
+             }
+        });
+
         if(!chatSprite) {
              const chatCanvas = document.createElement('canvas');
              chatCanvas.width = 256; chatCanvas.height = 64;
@@ -855,29 +887,33 @@ class Game3D {
              sprite.scale.set(80, 20, 1);
              sprite.position.y = 50;
              playerMesh.add(sprite);
-             this.drawChatBubble(chatCanvas, text);
-             setTimeout(() => { sprite.visible = false; }, 4000);
-             return;
+             chatSprite = sprite;
         }
 
         const canvas = chatSprite.material.map.image;
         this.drawChatBubble(canvas, text);
         chatSprite.material.map.needsUpdate = true;
         chatSprite.visible = true;
-        setTimeout(() => { chatSprite.visible = false; }, 4000);
+        
+        setTimeout(() => { 
+            if(chatSprite) chatSprite.visible = false; 
+        }, 4000);
     }
 
     drawChatBubble(canvas, text) {
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0,0,256,64);
+        
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
         ctx.beginPath();
         ctx.roundRect(10, 10, 236, 44, 10);
         ctx.fill();
+
         ctx.fillStyle = 'white';
         ctx.font = '20px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText(text, 128, 40);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, 128, 32);
     }
 
     syncPosition() {
@@ -891,7 +927,9 @@ class Game3D {
                 y: this.player.position.y,
                 z: this.player.position.z,
                 lastUpdate: window.firebaseApp.serverTimestamp()
-            }, { merge: true });
+            }, { merge: true }).catch(err => {
+                if(err.code === 'permission-denied') this.startOfflineMode();
+            });
         }
     }
 
@@ -1588,7 +1626,6 @@ class Game3D {
         document.getElementById('open-almanac').onclick = () => this.openAlmanac();
         document.getElementById('close-almanac').onclick = () => { almanacModal.style.display = 'none'; this.isAlmanacOpen = false; };
 
-        // NEW Inventory
         document.getElementById('open-inventory').onclick = () => this.toggleInventory();
         document.getElementById('close-inventory').onclick = () => this.toggleInventory();
     }
@@ -1660,6 +1697,36 @@ class Game3D {
             this.updateHealthUI();
             this.showToast("Health fully restored!");
         }
+    }
+
+    // Interaction Methods (Must be top-level)
+    unlockAnimal(type) {
+        if (!this.unlockedAnimals.has(type)) {
+            this.unlockedAnimals.add(type);
+            this.showToast(`New discovery: ${CONFIG.emojis[type]}`);
+        }
+    }
+
+    showAnimalDialogue(animalType) {
+        const animal = ANIMAL_DATA[animalType];
+        if (!animal) return;
+        const fact = animal.facts[Math.floor(Math.random() * animal.facts.length)];
+        
+        document.getElementById('speaker-name').innerText = `${CONFIG.emojis[animalType]} ${animal.name}`;
+        document.getElementById('dialogue-text').innerText = fact;
+        document.getElementById('dialogue-overlay').style.display = 'flex';
+        this.isDialogueOpen = true;
+    }
+
+    showVillagerDialogue(villagerType) {
+        const villager = VILLAGER_DATA[villagerType];
+        if (!villager) return;
+        const line = villager.lines[Math.floor(Math.random() * villager.lines.length)];
+        
+        document.getElementById('speaker-name').innerText = `${CONFIG.emojis[villagerType]} ${villager.name}`;
+        document.getElementById('dialogue-text').innerText = line;
+        document.getElementById('dialogue-overlay').style.display = 'flex';
+        this.isDialogueOpen = true;
     }
 
     openAlmanac() {
@@ -1875,6 +1942,7 @@ class Game3D {
         }
     }
 
+    // ... [Rest of Update Loop and Render] ...
     updatePlayer() {
         if (this.isDialogueOpen || this.isAlmanacOpen || this.chatOpen || this.isInventoryOpen) return;
 
