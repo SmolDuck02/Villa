@@ -1,0 +1,9 @@
+{
+  "name": "animal-village-mmo",
+  "version": "1.0.0",
+  "description": "Animal Village 3D MMO",
+  "scripts": {
+    "build": "echo 'No build step needed for static HTML'"
+  },
+  "dependencies": {}
+}
