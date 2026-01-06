@@ -31,6 +31,80 @@
             height: 100%;
         }
 
+        /* LOGIN SCREEN */
+        #login-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(5px);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-box {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            border: 4px solid var(--ui-border);
+        }
+
+        .login-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .login-input {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+            outline: none;
+        }
+        .login-input:focus { border-color: var(--ui-border); }
+
+        .char-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .char-option {
+            font-size: 30px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            cursor: pointer;
+            padding: 5px;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .char-option:hover { transform: scale(1.1); }
+        .char-option.selected { background: var(--ui-border); border-color: #4834d4; }
+
+        .start-btn {
+            background: var(--ui-border);
+            color: white;
+            border: none;
+            padding: 12px 40px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .start-btn:hover { transform: scale(1.05); }
+
         .ui-layer {
             position: absolute;
             pointer-events: none;
@@ -44,6 +118,7 @@
             flex-direction: column;
             justify-content: space-between;
             z-index: 10;
+            display: none; /* Hidden until login */
         }
 
         .hud {
@@ -195,8 +270,6 @@
             color: #000000; /* Force Black Text */
             outline: none;
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-            
-            /* Enable typing */
             user-select: text; 
             -webkit-user-select: text;
             cursor: text;
@@ -499,12 +572,12 @@
     
     <!-- FIREBASE MODULES -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { initializeApp, getApps, getApp, deleteApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, setPersistence, inMemoryPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, onSnapshot, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         window.firebaseApp = {
-            initializeApp, getAuth, signInAnonymously, signInWithCustomToken,
+            initializeApp, getApps, getApp, deleteApp, getAuth, signInAnonymously, signInWithCustomToken, setPersistence, inMemoryPersistence,
             getFirestore, collection, doc, setDoc, onSnapshot, serverTimestamp, deleteDoc
         };
     </script>
@@ -513,7 +586,22 @@
 
     <div id="game-container"></div>
     
-    <div class="ui-layer">
+    <!-- LOGIN OVERLAY -->
+    <div id="login-overlay">
+        <div class="login-box">
+            <div class="login-title">Join the Village</div>
+            <input type="text" id="username-input" class="login-input" placeholder="Enter your name..." maxlength="12">
+            
+            <div style="text-align:left; margin-bottom:5px; font-weight:bold; color:#666;">Choose Avatar:</div>
+            <div class="char-grid" id="char-grid">
+                <!-- Populated by JS -->
+            </div>
+            
+            <button class="start-btn" id="start-game-btn">Join World</button>
+        </div>
+    </div>
+
+    <div class="ui-layer" id="ui-layer">
         <div class="hud">
             <div class="hud-left">
                 <div class="health-bar" id="health-display">❤️❤️❤️</div>
@@ -612,7 +700,8 @@ const CONFIG = {
         flee: '💨', attack: '💢', heart: '❤️',
         // ITEMS
         apple: '🍎', carrot: '🥕', corn: '🌽', fish: '🐟', seed: '🌱', flower_item: '🌼'
-    }
+    },
+    avatars: ['🧙‍♂️', '👨‍🌾', '👵', '👦', '👧', '🦁', '🦊', '🐼', '🐺', '🐸']
 };
 
 const ITEM_DATA = {
@@ -721,15 +810,68 @@ class Game3D {
         
         this.appId = 'animal-village-global';
 
+        // Customization
+        this.playerName = "Player";
+        this.playerAvatar = CONFIG.emojis.player;
+        this.isJoined = false;
+
         this.initLights();
         this.initWorld();
         this.initInputs();
         this.initUI();
         
-        this.initMultiplayer();
-
+        // Start animate loop immediately for background, but don't spawn player yet
         this.animate = this.animate.bind(this);
         this.animate();
+    }
+
+    joinGame(name, avatar) {
+        this.playerName = name || "Player";
+        this.playerAvatar = avatar || CONFIG.emojis.player;
+        this.isJoined = true;
+        
+        // Hide overlay, show UI
+        document.getElementById('login-overlay').style.display = 'none';
+        document.querySelector('.ui-layer').style.display = 'flex';
+        
+        this.createLocalPlayer();
+        this.initMultiplayer();
+    }
+
+    createLocalPlayer() {
+        const playerObj = this.createSprite(this.playerAvatar, 40, 0, -250);
+        this.player = playerObj.group;
+        playerObj.sprite.center.set(0.5, 0.5);
+        
+        // Add name tag to self
+        const nameTag = this.createNameTag(this.playerName);
+        nameTag.position.y = 65;
+        this.player.add(nameTag);
+    }
+
+    createNameTag(name) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256; 
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        ctx.font = "Bold 24px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        
+        // Stroke for outline
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 4;
+        ctx.strokeText(name, 128, 32);
+        
+        // Fill
+        ctx.fillStyle = 'white';
+        ctx.fillText(name, 128, 32);
+        
+        const tex = new THREE.CanvasTexture(canvas);
+        const mat = new THREE.SpriteMaterial({ map: tex });
+        const sprite = new THREE.Sprite(mat);
+        sprite.scale.set(80, 20, 1);
+        return sprite;
     }
 
     async initMultiplayer() {
@@ -737,8 +879,13 @@ class Game3D {
             if (window.firebaseApp && window.firebaseApp.initializeApp) {
                 clearInterval(checkModules);
                 
+                const { initializeApp, getApps, deleteApp, getAuth, signInAnonymously, setPersistence, inMemoryPersistence, getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, serverTimestamp } = window.firebaseApp;
+
                 let firebaseConfig = USER_FIREBASE_CONFIG;
+                let isCustomConfig = true;
+
                 if (!firebaseConfig) {
+                    isCustomConfig = false;
                     try {
                         if (typeof __firebase_config !== 'undefined') {
                             firebaseConfig = JSON.parse(__firebase_config);
@@ -747,86 +894,105 @@ class Game3D {
                 }
                 
                 if (!firebaseConfig) {
-                    this.startOfflineMode();
+                    this.startOfflineMode("No Config");
                     return;
                 }
 
-                const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, serverTimestamp } = window.firebaseApp;
-                const app = initializeApp(firebaseConfig);
-                const auth = getAuth(app);
-                this.db = getFirestore(app);
-                
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-
-                this.userId = auth.currentUser.uid;
-                this.connecting = false;
-                
-                const playersRef = collection(this.db, 'artifacts', this.appId, 'public', 'data', 'players');
-                onSnapshot(playersRef, (snapshot) => {
-                    const onlineCount = snapshot.size;
-                    const countEl = document.getElementById('online-count');
+                try {
+                    // REUSE OR NEW STRATEGY (Stable)
+                    let app;
+                    const appName = "AnimalVillage_MMO_Fixed";
+                    const existingApp = getApps().find(a => a.name === appName);
                     
-                    countEl.innerHTML = `<span class="status-dot" style="background-color:#2ecc71"></span>Online: ${onlineCount}`;
-
-                    snapshot.docChanges().forEach((change) => {
-                        const pid = change.doc.id;
-                        if (pid === this.userId) return;
-
-                        if (change.type === "added") this.addRemotePlayer(pid, change.doc.data());
-                        if (change.type === "modified") this.updateRemotePlayer(pid, change.doc.data());
-                        if (change.type === "removed") this.removeRemotePlayer(pid);
-                    });
-                }, (error) => {
-                    // Suppress harmless permission errors if we just haven't set up the DB yet
-                    if (error.code !== 'permission-denied') {
-                         console.warn("Firebase Error:", error);
+                    if(existingApp) {
+                        app = existingApp;
+                    } else {
+                        app = initializeApp(firebaseConfig, appName);
                     }
-                    this.startOfflineMode(); 
-                });
 
-                window.addEventListener('beforeunload', () => {
-                    const pRef = doc(this.db, 'artifacts', this.appId, 'public', 'data', 'players', this.userId);
-                    deleteDoc(pRef);
-                });
+                    const auth = getAuth(app);
+                    await setPersistence(auth, inMemoryPersistence); // Critical for incognito
+
+                    this.db = getFirestore(app);
+                    this.appId = 'animal-village-global';
+
+                    // Authenticate if needed
+                    if (!auth.currentUser) {
+                         await signInAnonymously(auth);
+                    }
+
+                    if (!auth.currentUser) throw new Error("Auth failed");
+                    this.userId = auth.currentUser.uid;
+                    this.connecting = false;
+                    console.log("[MMO] Connected as:", this.userId);
+                    
+                    // Update player info immediately
+                    this.syncPosition();
+                    
+                    const playersRef = collection(this.db, 'artifacts', this.appId, 'public', 'data', 'players');
+                    
+                    onSnapshot(playersRef, (snapshot) => {
+                        const onlineCount = snapshot.size;
+                        const countEl = document.getElementById('online-count');
+                        if (countEl) countEl.innerHTML = `<span class="status-dot" style="background-color:#2ecc71"></span>Online: ${onlineCount}`;
+
+                        snapshot.docChanges().forEach((change) => {
+                            const pid = change.doc.id;
+                            if (pid === this.userId) return;
+
+                            if (change.type === "added") this.addRemotePlayer(pid, change.doc.data());
+                            if (change.type === "modified") this.updateRemotePlayer(pid, change.doc.data());
+                            if (change.type === "removed") this.removeRemotePlayer(pid);
+                        });
+                    }, (error) => {
+                        console.error("[MMO] Listener Error:", error);
+                        if (error.code === 'permission-denied') {
+                             this.startOfflineMode("DB Locked");
+                        } else {
+                             // Don't kill connection on network blip
+                        }
+                    });
+
+                    // Cleanup presence
+                    window.addEventListener('beforeunload', () => {
+                        if(this.db && this.userId) {
+                             const pRef = doc(this.db, 'artifacts', this.appId, 'public', 'data', 'players', this.userId);
+                             deleteDoc(pRef).catch(()=>{});
+                        }
+                    });
+
+                } catch (e) {
+                    console.error("[MMO] Init Critical Failure:", e);
+                    this.startOfflineMode("Init Failed");
+                }
             }
         }, 100);
     }
 
-    startOfflineMode() {
+    startOfflineMode(reason = "Offline Mode") {
         if (this.isOffline) return;
         this.isOffline = true;
         this.connecting = false;
         const countEl = document.getElementById('online-count');
-        countEl.innerHTML = `<span class="status-dot" style="background-color:#e74c3c"></span>Offline (Bots)`;
-        this.showToast("No server config found. Started Offline Mode.");
-        this.spawnBots();
-    }
-
-    spawnBots() {
-        for(let i=0; i<5; i++) {
-            const bx = (Math.random() - 0.5) * 500;
-            const bz = (Math.random() - 0.5) * 500;
-            this.addRemotePlayer(`bot_${i}`, {x: bx, z: bz});
-            
-            const bot = this.remotePlayers[`bot_${i}`];
-            bot.isBot = true;
-            
-            setInterval(() => {
-                if(Math.random() < 0.3) {
-                    this.showChatBubble(bot.mesh, ["Hello!", "Nice boat!", "Zoom zoom", "Anyone here?"][Math.floor(Math.random()*4)]);
-                }
-            }, 5000 + Math.random() * 5000);
-        }
+        if (countEl) countEl.innerHTML = `<span class="status-dot" style="background-color:#e74c3c"></span>${reason}`;
+        this.showToast(`${reason} - Single Player`);
+        // NO BOTS
     }
 
     addRemotePlayer(id, data) {
-        const spriteObj = this.createSprite(CONFIG.emojis.player, 40, data.x, data.z);
-        spriteObj.sprite.material.color.setHex(0xcccccc); 
+        // Use custom avatar if provided, else default
+        const avatar = data.avatar || CONFIG.emojis.player;
+        const spriteObj = this.createSprite(avatar, 40, data.x, data.z);
+        // Do NOT grey out
         
+        // Add Name Tag
+        if (data.username) {
+            const nameTag = this.createNameTag(data.username);
+            nameTag.position.y = 65;
+            spriteObj.group.add(nameTag);
+        }
+
+        // Add Chat Bubble placeholder
         const chatCanvas = document.createElement('canvas');
         chatCanvas.width = 256; chatCanvas.height = 64;
         const chatTex = new THREE.CanvasTexture(chatCanvas);
@@ -849,6 +1015,7 @@ class Game3D {
             if(data.msg) {
                 this.showChatBubble(this.remotePlayers[id].mesh, data.msg);
             }
+            // Could update avatar/name if changed, but usually static for session
         }
     }
 
@@ -864,21 +1031,17 @@ class Game3D {
         this.showChatBubble(this.player, text);
         if (this.userId && this.db && !this.isOffline) {
              const pRef = window.firebaseApp.doc(this.db, 'artifacts', this.appId, 'public', 'data', 'players', this.userId);
-             window.firebaseApp.setDoc(pRef, { msg: text }, { merge: true }).catch(err => {
-                 if(err.code === 'permission-denied') this.startOfflineMode();
-             });
+             window.firebaseApp.setDoc(pRef, { msg: text }, { merge: true }).catch(()=>{});
         }
     }
 
     showChatBubble(playerMesh, text) {
-        let chatSprite = null;
-        playerMesh.children.forEach(c => {
-             if (c.material && c.material.map && c.material.map.image && c.material.map.image.width === 256) {
-                 chatSprite = c;
-             }
-        });
+        // Find chat sprite
+        // It's the one with width 256 in its texture image, usually 2nd or 3rd child
+        let chatSprite = playerMesh.children.find(c => c.material && c.material.map && c.material.map.image && c.material.map.image.width === 256 && c.position.y === 50);
 
         if(!chatSprite) {
+             // Should exist from creation, but fallback
              const chatCanvas = document.createElement('canvas');
              chatCanvas.width = 256; chatCanvas.height = 64;
              const chatTex = new THREE.CanvasTexture(chatCanvas);
@@ -917,7 +1080,7 @@ class Game3D {
     }
 
     syncPosition() {
-        if (!this.userId || !this.db || this.isOffline) return;
+        if (!this.userId || !this.db || this.isOffline || !this.player) return;
         const now = Date.now();
         if (now - this.lastPosUpdate > 100) { 
             this.lastPosUpdate = now;
@@ -926,10 +1089,10 @@ class Game3D {
                 x: this.player.position.x,
                 y: this.player.position.y,
                 z: this.player.position.z,
+                username: this.playerName, // Send Name
+                avatar: this.playerAvatar, // Send Avatar
                 lastUpdate: window.firebaseApp.serverTimestamp()
-            }, { merge: true }).catch(err => {
-                if(err.code === 'permission-denied') this.startOfflineMode();
-            });
+            }, { merge: true }).catch(()=>{});
         }
     }
 
@@ -1015,14 +1178,10 @@ class Game3D {
     createRock(x, z, size) { const geo = new THREE.DodecahedronGeometry(size); const mat = new THREE.MeshStandardMaterial({ color: CONFIG.colors.rock }); const rock = new THREE.Mesh(geo, mat); rock.position.set(x, size/2, z); this.scene.add(rock); this.colliders.push({ type: 'rock', x: x, z: z, radius: size }); }
     createFence(x1, x2, z1, z2) { const geo = new THREE.BoxGeometry(10, 30, 10); const mat = new THREE.MeshStandardMaterial({ color: CONFIG.colors.fence }); const post = new THREE.Mesh(geo, mat); post.position.set(x1, 15, z1); this.scene.add(post); this.colliders.push({ type: 'fence', x: x1, z: z1, radius: 8 }); }
 
-    // NEW: SPAWN COLLECTABLE ITEMS
     spawnCollectables() {
         // Apples under trees
         this.scene.children.forEach(obj => {
-            if (obj.userData && obj.userData.parentGroup) {
-                // If it's a tree (we check collision list for tree locations as well, or just random)
-                // For simplicity, spawn random apples
-            }
+            if (obj.userData && obj.userData.parentGroup) { }
         });
 
         // Spawn 30 Random Apples near center
@@ -1054,17 +1213,12 @@ class Game3D {
     createItem(itemId, x, z) {
         const emoji = CONFIG.emojis[itemId] || '📦';
         const obj = this.createSprite(emoji, 20, x, z);
-        
-        // Make it float/bounce
         obj.group.position.y = 5;
         obj.group.userData = { type: 'collectable', itemId: itemId };
         obj.sprite.userData = { parentGroup: obj.group };
-
-        // Simple float animation
         obj.group.update = () => {
             obj.group.position.y = 5 + Math.sin(Date.now() * 0.005) * 2;
         };
-        
         this.collectables.push(obj.group);
     }
 
@@ -1080,16 +1234,12 @@ class Game3D {
     updateInventoryUI() {
         const grid = document.getElementById('inventory-grid');
         grid.innerHTML = '';
-        
         for (const [id, count] of Object.entries(this.inventory)) {
             if (count > 0) {
                 const data = ITEM_DATA[id] || { name: id, desc: "" };
                 const slot = document.createElement('div');
                 slot.className = 'inv-slot';
-                slot.innerHTML = `
-                    <div class="inv-icon">${CONFIG.emojis[id] || '❓'}</div>
-                    <div class="inv-count">${count}</div>
-                `;
+                slot.innerHTML = `<div class="inv-icon">${CONFIG.emojis[id] || '❓'}</div><div class="inv-count">${count}</div>`;
                 slot.title = `${data.name}: ${data.desc}`;
                 grid.appendChild(slot);
             }
@@ -1147,7 +1297,6 @@ class Game3D {
 
         this.spawnVillagers();
 
-        // Rocks
         for(let i=0; i<30; i++) {
             const r = 200 + Math.random() * 600; 
             const theta = Math.random() * Math.PI * 2;
@@ -1158,16 +1307,13 @@ class Game3D {
             }
         }
 
-        // Trees
         for (let i = 0; i < 120; i++) {
             const x = (Math.random() - 0.5) * CONFIG.worldSize;
             const z = (Math.random() - 0.5) * CONFIG.worldSize;
-            
             if (this.checkGenerationOverlap(x, z, 30)) {
                 const isTree = Math.random() > 0.4;
                 const emoji = isTree ? (Math.random() > 0.5 ? CONFIG.emojis.tree : CONFIG.emojis.pine) : CONFIG.emojis.flower;
                 const scale = isTree ? 80 + Math.random() * 40 : 25;
-                
                 if(isTree) {
                     this.colliders.push({ type: 'tree', x: x, z: z, radius: 10 });
                 } else {
@@ -1178,322 +1324,99 @@ class Game3D {
         }
 
         this.spawnAnimals();
-        this.spawnCollectables(); // NEW
-
-        const playerObj = this.createSprite(CONFIG.emojis.player, 40, 0, -250);
-        this.player = playerObj.group;
-        playerObj.sprite.center.set(0.5, 0.5);
-
+        this.spawnCollectables(); 
         this.createClouds();
     }
 
-    checkGenerationOverlap(x, z, radius) {
-        if (this.checkCollision(x, z, radius)) return false;
-        for(let s of this.sceneryColliders) {
-            const dx = x - s.x;
-            const dz = z - s.z;
-            const dist = Math.sqrt(dx*dx + dz*dz);
-            if(dist < (s.radius + radius)) return false;
-        }
-        if (this.checkPathOverlap(x, z, radius)) return false;
-        return true;
-    }
-
-    checkPathOverlap(x, z, padding) {
-        const p1_minX = -15 - padding;
-        const p1_maxX = 15 + padding;
-        const p1_minZ = -375 - padding;
-        const p1_maxZ = -175 + padding;
-        if (x > p1_minX && x < p1_maxX && z > p1_minZ && z < p1_maxZ) return true;
-        const p2_minX = -80 - padding;
-        const p2_maxX = 80 + padding;
-        const p2_minZ = -365 - padding;
-        const p2_maxZ = -335 + padding;
-        if (x > p2_minX && x < p2_maxX && z > p2_minZ && z < p2_maxZ) return true;
-        return false;
-    }
-
-    checkCollision(x, z, radius) {
-        for(let c of this.colliders) {
-            const dx = x - c.x;
-            const dz = z - c.z;
-            const dist = Math.sqrt(dx*dx + dz*dz);
-            if(dist < (c.radius + radius)) {
-                return c; 
-            }
-        }
-        return null;
-    }
-
-    isLocationFree(x, z, radius) {
-        if (this.checkCollision(x, z, radius)) return false;
-        for (let a of this.animals) {
-            const dx = x - a.position.x;
-            const dz = z - a.position.z;
-            const dist = Math.sqrt(dx*dx + dz*dz);
-            if (dist < radius * 2) return false;
-        }
-        return true;
-    }
+    checkGenerationOverlap(x, z, radius) { if (this.checkCollision(x, z, radius)) return false; for(let s of this.sceneryColliders) { const dx = x - s.x; const dz = z - s.z; const dist = Math.sqrt(dx*dx + dz*dz); if(dist < (s.radius + radius)) return false; } if (this.checkPathOverlap(x, z, radius)) return false; return true; }
+    checkPathOverlap(x, z, padding) { const p1_minX = -15 - padding; const p1_maxX = 15 + padding; const p1_minZ = -375 - padding; const p1_maxZ = -175 + padding; if (x > p1_minX && x < p1_maxX && z > p1_minZ && z < p1_maxZ) return true; const p2_minX = -80 - padding; const p2_maxX = 80 + padding; const p2_minZ = -365 - padding; const p2_maxZ = -335 + padding; if (x > p2_minX && x < p2_maxX && z > p2_minZ && z < p2_maxZ) return true; return false; }
+    checkCollision(x, z, radius) { for(let c of this.colliders) { const dx = x - c.x; const dz = z - c.z; const dist = Math.sqrt(dx*dx + dz*dz); if(dist < (c.radius + radius)) { return c; } } return null; }
+    isLocationFree(x, z, radius) { if (this.checkCollision(x, z, radius)) return false; for (let a of this.animals) { const dx = x - a.position.x; const dz = z - a.position.z; const dist = Math.sqrt(dx*dx + dz*dz); if (dist < radius * 2) return false; } return true; }
 
     spawnAnimals() {
         const farmAnimals = ['cow', 'pig', 'chicken', 'sheep', 'goat', 'horse', 'rabbit', 'dog', 'cat'];
         const wildAnimals = ['deer', 'fox', 'wolf', 'bear', 'squirrel', 'lion', 'elephant', 'giraffe', 'zebra', 'monkey', 'panda', 'kangaroo'];
-        
-        farmAnimals.forEach(type => {
-            const count = 1 + Math.floor(Math.random() * 2);
-            for(let i=0; i<count; i++) {
-                this.spawnSingleAnimal(type, -300, 100, -300, 300); 
-            }
-        });
-
-        wildAnimals.forEach(type => {
-            const count = 1 + Math.floor(Math.random() * 2);
-            for(let i=0; i<count; i++) {
-                let x, z;
-                let found = false;
+        farmAnimals.forEach(type => { const count = 1 + Math.floor(Math.random() * 2); for(let i=0; i<count; i++) { this.spawnSingleAnimal(type, -300, 100, -300, 300); } });
+        wildAnimals.forEach(type => { const count = 1 + Math.floor(Math.random() * 2); for(let i=0; i<count; i++) {
+                let x, z, found = false;
                 for(let k=0; k<20; k++) { 
                     x = (Math.random() - 0.5) * CONFIG.worldSize * 0.9;
                     z = (Math.random() - 0.5) * CONFIG.worldSize * 0.9;
                     if(x > -350 && x < 150 && z > -350 && z < 350) continue; 
                     if(this.checkGenerationOverlap(x, z, 30)) {
                         let overlapAnimal = false;
-                        for(let a of this.animals) {
-                            if(a.position.distanceTo(new THREE.Vector3(x, 0, z)) < 40) overlapAnimal = true;
-                        }
-                        if(!overlapAnimal) {
-                            found = true;
-                            break;
-                        }
+                        for(let a of this.animals) { if(a.position.distanceTo(new THREE.Vector3(x, 0, z)) < 40) overlapAnimal = true; }
+                        if(!overlapAnimal) { found = true; break; }
                     }
                 }
                 if(found) this.spawnAnimalEntity(type, x, z);
-            }
-        });
+        }});
     }
-
-    spawnSingleAnimal(type, minX, maxX, minZ, maxZ) {
-        let x, z;
-        let found = false;
-        for(let k=0; k<10; k++) {
-            x = minX + Math.random() * (maxX - minX);
-            z = minZ + Math.random() * (maxZ - minZ);
-            if(this.checkGenerationOverlap(x, z, 30)) {
-                found = true;
-                break;
-            }
-        }
-        if(found) {
-            this.spawnAnimalEntity(type, x, z);
-        }
-    }
-
+    spawnSingleAnimal(type, minX, maxX, minZ, maxZ) { let x, z, found = false; for(let k=0; k<10; k++) { x = minX + Math.random() * (maxX - minX); z = minZ + Math.random() * (maxZ - minZ); if(this.checkGenerationOverlap(x, z, 30)) { found = true; break; } } if(found) { this.spawnAnimalEntity(type, x, z); } }
+    
     spawnAnimalEntity(type, x, z) {
         const obj = this.createSprite(CONFIG.emojis[type], 35, x, z);
         const data = ANIMAL_DATA[type];
-        
-        obj.group.userData = { 
-            type: 'animal', 
-            animalType: type,
-            temperament: data.temperament,
-            state: 'idle', 
-            calmTimer: 0,
-            hurtTimer: 0,
-            lethalIntent: Math.random() < 0.3,
-            vy: 0 // Vertical velocity for falling
-        };
+        if (!data) { return; }
+        obj.group.userData = { type: 'animal', animalType: type, temperament: data.temperament, state: 'idle', calmTimer: 0, hurtTimer: 0, lethalIntent: Math.random() < 0.3, vy: 0 };
         obj.sprite.userData = { parentGroup: obj.group };
-
-        const fleeStatus = this.createStatusSprite('flee');
-        fleeStatus.position.y = 45;
-        obj.group.add(fleeStatus);
-        
-        const attackStatus = this.createStatusSprite('attack');
-        attackStatus.position.y = 45;
-        obj.group.add(attackStatus);
-
+        const fleeStatus = this.createStatusSprite('flee'); fleeStatus.position.y = 45; obj.group.add(fleeStatus);
+        const attackStatus = this.createStatusSprite('attack'); attackStatus.position.y = 45; obj.group.add(attackStatus);
         obj.group.userData.statusSprites = { flee: fleeStatus, attack: attackStatus };
-
-        // Identify if this animal is allowed in water
         const isAquatic = ['duck', 'frog', 'turtle'].includes(type);
-
         obj.group.update = () => {
-            // --- FALLING LOGIC ---
             const limit = CONFIG.worldSize / 2;
             const isOffWorld = Math.abs(obj.group.position.x) > limit || Math.abs(obj.group.position.z) > limit;
-
             if (isOffWorld) {
-                // Apply Gravity
                 obj.group.userData.vy -= 1.5;
                 obj.group.position.y += obj.group.userData.vy;
-
-                // Respawn if too low (Lowered to -25000 for longer fall duration)
                 if (obj.group.position.y < -25000) {
-                    // Respawn at a random safe spot near center
                     obj.group.position.set((Math.random() - 0.5) * 400, 0, (Math.random() - 0.5) * 400);
-                    obj.group.userData.vy = 0;
-                    obj.group.userData.state = 'idle';
-                    obj.group.userData.hurtTimer = 0;
+                    obj.group.userData.vy = 0; obj.group.userData.state = 'idle'; obj.group.userData.hurtTimer = 0;
                 }
-                return; // Skip rest of logic while falling
-            } else {
-                obj.group.position.y = 0;
-                obj.group.userData.vy = 0;
-            }
+                return; 
+            } else { obj.group.position.y = 0; obj.group.userData.vy = 0; }
 
             const temperament = obj.group.userData.temperament;
             const dist = obj.group.position.distanceTo(this.player.position);
             const isTamed = this.unlockedAnimals.has(type);
             const isHurt = obj.group.userData.hurtTimer > 0;
             let cooldownRate = 1; 
-            
-            // --- STEALTH & COOLDOWN LOGIC (NEW) ---
-            if (this.moveState === 'crouch') {
-                if (obj.group.userData.lethalIntent) {
-                    cooldownRate = 2; 
-                } else {
-                    cooldownRate = 5; 
-                }
-            }
-
-            if (isHurt) {
-                obj.group.userData.hurtTimer -= cooldownRate;
-                if (obj.group.userData.hurtTimer < 0) obj.group.userData.hurtTimer = 0;
-            }
-
-            // --- STATE MACHINE ---
+            if (this.moveState === 'crouch') { if (obj.group.userData.lethalIntent) { cooldownRate = 2; } else { cooldownRate = 5; } }
+            if (isHurt) { obj.group.userData.hurtTimer -= cooldownRate; if (obj.group.userData.hurtTimer < 0) obj.group.userData.hurtTimer = 0; }
             if (obj.group.userData.hurtTimer > 0) {
-                if (obj.group.userData.hurtReaction) {
-                    obj.group.userData.state = obj.group.userData.hurtReaction;
-                } else {
-                    obj.group.userData.state = (temperament === 'aggressive') ? 'chase' : 'flee';
-                }
-            } else if (isTamed) {
-                obj.group.userData.state = 'idle';
-            } else {
-                // --- STEALTH LOGIC IMPLEMENTATION ---
+                if (obj.group.userData.hurtReaction) { obj.group.userData.state = obj.group.userData.hurtReaction; } else { obj.group.userData.state = (temperament === 'aggressive') ? 'chase' : 'flee'; }
+            } else if (isTamed) { obj.group.userData.state = 'idle'; } else {
                 let detectionRadius = 200; 
-                if (this.moveState === 'run') detectionRadius = 350;
-                else if (this.moveState === 'crouch') detectionRadius = 100;
-
+                if (this.moveState === 'run') detectionRadius = 350; else if (this.moveState === 'crouch') detectionRadius = 100;
                 if (dist < detectionRadius) {
-                    let triggerChance = 0.02; 
-                    if (this.moveState === 'run') triggerChance = 0.1;
-                    else if (this.moveState === 'crouch') triggerChance = 0.005;
-
-                    if (Math.random() < triggerChance) {
-                        if (temperament === 'skittish') {
-                            obj.group.userData.state = 'flee';
-                            obj.group.userData.calmTimer = 100;
-                        } else if (temperament === 'aggressive') {
-                            obj.group.userData.state = 'chase';
-                            obj.group.userData.calmTimer = 100;
-                        }
-                    }
-                } else {
-                    if (obj.group.userData.calmTimer > 0) {
-                        obj.group.userData.calmTimer -= cooldownRate;
-                    } else {
-                        obj.group.userData.state = 'idle';
-                    }
-                }
+                    let triggerChance = 0.02; if (this.moveState === 'run') triggerChance = 0.1; else if (this.moveState === 'crouch') triggerChance = 0.005;
+                    if (Math.random() < triggerChance) { if (temperament === 'skittish') { obj.group.userData.state = 'flee'; obj.group.userData.calmTimer = 100; } else if (temperament === 'aggressive') { obj.group.userData.state = 'chase'; obj.group.userData.calmTimer = 100; } }
+                } else { if (obj.group.userData.calmTimer > 0) { obj.group.userData.calmTimer -= cooldownRate; } else { obj.group.userData.state = 'idle'; } }
             }
-
-            // --- MOVEMENT EXECUTION ---
             const state = obj.group.userData.state;
             const speed = (state === 'chase') ? 1.8 : 2.2; 
-            
             if (state === 'flee' || state === 'chase') {
-                obj.group.userData.statusSprites.flee.visible = (state === 'flee');
-                obj.group.userData.statusSprites.attack.visible = (state === 'chase');
-
-                let dx, dz;
-                if (state === 'flee') {
-                    dx = obj.group.position.x - this.player.position.x;
-                    dz = obj.group.position.z - this.player.position.z;
-                } else {
-                    dx = this.player.position.x - obj.group.position.x;
-                    dz = this.player.position.z - obj.group.position.z;
-                }
-
-                const len = Math.sqrt(dx*dx + dz*dz) || 1;
-                const moveX = (dx/len) * speed;
-                const moveZ = (dz/len) * speed;
-
+                obj.group.userData.statusSprites.flee.visible = (state === 'flee'); obj.group.userData.statusSprites.attack.visible = (state === 'chase');
+                let dx, dz; if (state === 'flee') { dx = obj.group.position.x - this.player.position.x; dz = obj.group.position.z - this.player.position.z; } else { dx = this.player.position.x - obj.group.position.x; dz = this.player.position.z - obj.group.position.z; }
+                const len = Math.sqrt(dx*dx + dz*dz) || 1; const moveX = (dx/len) * speed; const moveZ = (dz/len) * speed;
                 if (state === 'chase' && dist < 20) {
                     this.gameInstance.takeDamage(obj.group.userData.lethalIntent);
-                    
-                    const pushStr = 15;
-                    this.player.position.x += (dx/len) * pushStr;
-                    this.player.position.z += (dz/len) * pushStr;
-
-                    if (!obj.group.userData.lethalIntent && this.gameInstance.health === 1) {
-                        obj.group.userData.state = 'idle';
-                        obj.group.userData.hurtTimer = 0; 
-                        obj.group.userData.calmTimer = 200; 
-                        this.showToast(`The ${type} showed mercy.`);
-                    }
-                    else if (!obj.group.userData.lethalIntent && Math.random() < 0.4) {
-                        obj.group.userData.state = 'flee';
-                        obj.group.userData.hurtReaction = 'flee'; 
-                        obj.group.userData.calmTimer = 150;
-                    }
+                    const pushStr = 15; this.player.position.x += (dx/len) * pushStr; this.player.position.z += (dz/len) * pushStr;
+                    if (!obj.group.userData.lethalIntent && this.gameInstance.health === 1) { obj.group.userData.state = 'idle'; obj.group.userData.hurtTimer = 0; obj.group.userData.calmTimer = 200; this.showToast(`The ${type} showed mercy.`); } else if (!obj.group.userData.lethalIntent && Math.random() < 0.4) { obj.group.userData.state = 'flee'; obj.group.userData.hurtReaction = 'flee'; obj.group.userData.calmTimer = 150; }
                 }
-
-                const limit = CONFIG.worldSize / 2 - 20;
-                
-                const nextX = obj.group.position.x + moveX;
-                const colX = this.checkCollision(nextX, obj.group.position.z, 20);
-                let blocked = false;
-                if (colX) {
-                     if (colX.type === 'water' && !isAquatic) blocked = true;
-                     else if (colX.type !== 'water') blocked = true;
-                }
-                if (!blocked) obj.group.position.x = nextX;
-
-                const nextZ = obj.group.position.z + moveZ;
-                const colZ = this.checkCollision(obj.group.position.x, nextZ, 20);
-                blocked = false;
-                if (colZ) {
-                     if (colZ.type === 'water' && !isAquatic) blocked = true;
-                     else if (colZ.type !== 'water') blocked = true;
-                }
-                if (!blocked) obj.group.position.z = nextZ;
-
+                const limit = CONFIG.worldSize / 2 - 20; const nextX = obj.group.position.x + moveX; const colX = this.checkCollision(nextX, obj.group.position.z, 20); let blocked = false; if (colX) { if (colX.type === 'water' && !isAquatic) blocked = true; else if (colX.type !== 'water') blocked = true; } if (!blocked) obj.group.position.x = nextX;
+                const nextZ = obj.group.position.z + moveZ; const colZ = this.checkCollision(obj.group.position.x, nextZ, 20); blocked = false; if (colZ) { if (colZ.type === 'water' && !isAquatic) blocked = true; else if (colZ.type !== 'water') blocked = true; } if (!blocked) obj.group.position.z = nextZ;
             } else {
-                obj.group.userData.statusSprites.flee.visible = false;
-                obj.group.userData.statusSprites.attack.visible = false;
-
-                if(Math.random() < 0.02) {
-                    obj.group.userData.dx = (Math.random() - 0.5) * 0.8;
-                    obj.group.userData.dz = (Math.random() - 0.5) * 0.8;
-                }
-                
-                let dx = obj.group.userData.dx || 0;
-                let dz = obj.group.userData.dz || 0;
-                
-                const nextX = obj.group.position.x + dx;
-                const nextZ = obj.group.position.z + dz;
-
-                const colX = this.checkCollision(nextX, obj.group.position.z, 20);
-                if (!colX) {
-                    obj.group.position.x = nextX;
-                } else {
-                    obj.group.userData.dx *= -1; 
-                }
-
-                const colZ = this.checkCollision(obj.group.position.x, nextZ, 20);
-                if (!colZ) {
-                    obj.group.position.z = nextZ;
-                } else {
-                    obj.group.userData.dz *= -1;
-                }
+                obj.group.userData.statusSprites.flee.visible = false; obj.group.userData.statusSprites.attack.visible = false;
+                if(Math.random() < 0.02) { obj.group.userData.dx = (Math.random() - 0.5) * 0.8; obj.group.userData.dz = (Math.random() - 0.5) * 0.8; }
+                let dx = obj.group.userData.dx || 0; let dz = obj.group.userData.dz || 0; const nextX = obj.group.position.x + dx; const nextZ = obj.group.position.z + dz;
+                const colX = this.checkCollision(nextX, obj.group.position.z, 20); if (!colX) { obj.group.position.x = nextX; } else { obj.group.userData.dx *= -1; }
+                const colZ = this.checkCollision(obj.group.position.x, nextZ, 20); if (!colZ) { obj.group.position.z = nextZ; } else { obj.group.userData.dz *= -1; }
             }
         };
-        
         obj.group.update.gameInstance = this;
         this.gameInstance = this;
-
         this.animals.push(obj.group);
     }
 
@@ -1622,12 +1545,33 @@ class Game3D {
     initUI() {
         document.getElementById('sens-toggle').onclick = () => this.toggleSensitivity();
         document.getElementById('close-dialogue').onclick = () => this.closeDialogue();
-        const almanacModal = document.getElementById('almanac-modal');
+        
         document.getElementById('open-almanac').onclick = () => this.openAlmanac();
-        document.getElementById('close-almanac').onclick = () => { almanacModal.style.display = 'none'; this.isAlmanacOpen = false; };
+        document.getElementById('close-almanac').onclick = () => { document.getElementById('almanac-modal').style.display = 'none'; this.isAlmanacOpen = false; };
 
         document.getElementById('open-inventory').onclick = () => this.toggleInventory();
         document.getElementById('close-inventory').onclick = () => this.toggleInventory();
+
+        // Login Logic
+        const charGrid = document.getElementById('char-grid');
+        CONFIG.avatars.forEach((emoji, index) => {
+            const div = document.createElement('div');
+            div.className = 'char-option';
+            if (index === 0) div.classList.add('selected');
+            div.textContent = emoji;
+            div.onclick = () => {
+                document.querySelectorAll('.char-option').forEach(e => e.classList.remove('selected'));
+                div.classList.add('selected');
+                this.playerAvatar = emoji;
+            };
+            charGrid.appendChild(div);
+        });
+
+        document.getElementById('start-game-btn').onclick = () => {
+            const nameInput = document.getElementById('username-input');
+            const name = nameInput.value.trim() || "Player";
+            this.joinGame(name, this.playerAvatar);
+        };
     }
 
     toggleInventory() {
@@ -1829,13 +1773,15 @@ class Game3D {
             if (dist < attackRange) {
                 group.userData.hurtTimer = 300; 
                 
+                // DYNAMIC REACTION LOGIC
                 const temperament = group.userData.temperament;
-                let fightChance = 0.3; 
+                let fightChance = 0.3; // Default for passive/skittish: 30% fight, 70% flight
                 
                 if (temperament === 'aggressive') {
-                    fightChance = 0.8; 
+                    fightChance = 0.8; // Aggressive: 80% fight, 20% flight
                 }
 
+                // Determine reaction for this specific attack instance
                 if (Math.random() < fightChance) {
                     group.userData.hurtReaction = 'chase';
                     this.showToast(`Provoked! The ${group.userData.animalType} is angry!`);
@@ -1851,6 +1797,9 @@ class Game3D {
         });
 
         if (hitCount > 0) {
+            // Toast handled per animal logic above for better feedback
+        } else {
+            // Missed
         }
     }
 
@@ -1872,6 +1821,7 @@ class Game3D {
                 if (dist < 100) {
                     const itemId = group.userData.itemId;
                     this.scene.remove(group);
+                    // Remove from collectables array
                     const idx = this.collectables.indexOf(group);
                     if (idx > -1) this.collectables.splice(idx, 1);
                     
@@ -1911,6 +1861,7 @@ class Game3D {
                         this.unlockAnimal(group.userData.animalType);
                         this.showAnimalDialogue(group.userData.animalType);
                     } else if (type === 'villager') {
+                        // Chance to give gift
                         if (Math.random() < 0.3) {
                              const gifts = ['apple', 'carrot', 'corn', 'seed'];
                              const gift = gifts[Math.floor(Math.random() * gifts.length)];
@@ -1926,6 +1877,7 @@ class Game3D {
                 }
             }
             
+            // Check Boat
             const hitBoat = intersects.find(i => i.object.userData && i.object.parent && i.object.parent.userData.type === 'boat');
             if (hitBoat) {
                 const boatGroup = hitBoat.object.parent;
@@ -1944,6 +1896,15 @@ class Game3D {
 
     // ... [Rest of Update Loop and Render] ...
     updatePlayer() {
+        // ... (existing update player logic - NO CHANGES NEEDED) ...
+        // Only update if joined
+        if (!this.isJoined) {
+            // Just orbit camera if not joined
+            this.cameraAngle += 0.002;
+            this.updateCameraFollow();
+            return;
+        }
+
         if (this.isDialogueOpen || this.isAlmanacOpen || this.chatOpen || this.isInventoryOpen) return;
 
         this.checkHealing(); 
@@ -2010,6 +1971,16 @@ class Game3D {
     }
 
     updateCameraFollow() {
+        // If not joined, orbit around center
+        if (!this.isJoined) {
+            const orbitRadius = 400;
+            this.camera.position.x = Math.sin(this.cameraAngle) * orbitRadius;
+            this.camera.position.z = Math.cos(this.cameraAngle) * orbitRadius;
+            this.camera.position.y = 300;
+            this.camera.lookAt(0, 0, 0);
+            return;
+        }
+
         const orbitRadius = this.orbitRadius;
         const yOffset = Math.sin(this.cameraPitch) * orbitRadius;
         const hDistance = Math.cos(this.cameraPitch) * orbitRadius; 
