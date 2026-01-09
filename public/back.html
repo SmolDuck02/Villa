@@ -1,0 +1,2286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Animal Village 3D: MMO Edition</title>
+    <!-- Import Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        :root {
+            --ui-border: #6c5ce7;
+            --ui-bg: #fff;
+            --font-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #87CEEB;
+            font-family: var(--font-main);
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #game-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* LOGIN SCREEN */
+        #login-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(5px);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-box {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            border: 4px solid var(--ui-border);
+        }
+
+        .login-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .login-input {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+            outline: none;
+        }
+        .login-input:focus { border-color: var(--ui-border); }
+
+        .char-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .char-option {
+            font-size: 30px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            cursor: pointer;
+            padding: 5px;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .char-option:hover { transform: scale(1.1); }
+        .char-option.selected { background: var(--ui-border); border-color: #4834d4; }
+
+        .start-btn {
+            background: var(--ui-border);
+            color: white;
+            border: none;
+            padding: 12px 40px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .start-btn:hover { transform: scale(1.05); }
+
+        .ui-layer {
+            position: absolute;
+            pointer-events: none;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            z-index: 10;
+            display: none; /* Hidden until login */
+        }
+
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: auto;
+            width: 100%;
+        }
+
+        .hud-left {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .quest-box {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 15px;
+            border-radius: 8px;
+            border-left: 5px solid var(--ui-border);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            max-width: 300px;
+        }
+
+        .health-bar {
+            font-size: 32px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            background: rgba(255, 255, 255, 0.8);
+            padding: 5px 15px;
+            border-radius: 20px;
+            display: inline-block;
+        }
+
+        .sens-btn {
+            background: rgba(255, 255, 255, 0.9);
+            border: 2px solid var(--ui-border);
+            color: #333;
+            border-radius: 20px;
+            padding: 5px 15px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+            pointer-events: auto;
+            align-self: flex-start;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.1s;
+        }
+        .sens-btn:hover { transform: scale(1.05); }
+        .sens-btn:active { transform: scale(0.95); }
+
+        .stance-indicator {
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+            align-self: flex-start;
+            margin-top: 5px;
+        }
+
+        .online-count {
+            background: rgba(46, 204, 113, 0.9);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-top: 5px;
+            align-self: flex-end;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            text-align: right;
+        }
+        
+        .status-dot {
+            height: 10px;
+            width: 10px;
+            background-color: #eee;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        .quest-title {
+            font-weight: bold;
+            font-size: 14px;
+            color: #555;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .quest-text {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2d3436;
+        }
+
+        .almanac-btn, .inventory-btn {
+            background: #fff;
+            border: 4px solid var(--ui-border);
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+
+        .almanac-btn:hover, .inventory-btn:hover { transform: scale(1.1); }
+
+        .controls-hint {
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            text-align: center;
+            backdrop-filter: blur(2px);
+            align-self: center;
+        }
+
+        /* CHAT UI */
+        #chat-container {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 400px;
+            pointer-events: auto;
+            display: none; /* Hidden until Enter is pressed */
+            z-index: 100; /* Ensure it's on top */
+        }
+
+        #chat-input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 30px;
+            border: 3px solid var(--ui-border);
+            background: #ffffff; /* Pure white background */
+            font-family: var(--font-main);
+            font-size: 16px;
+            color: #000000; /* Force Black Text */
+            outline: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            user-select: text; 
+            -webkit-user-select: text;
+            cursor: text;
+        }
+
+        #dialogue-overlay {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 600px;
+            background: white;
+            border: 4px solid var(--ui-border);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+            display: none;
+            pointer-events: auto;
+            flex-direction: column;
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 20;
+        }
+
+        #almanac-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 900px;
+            height: 85%;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            display: none;
+            flex-direction: column;
+            z-index: 30;
+            pointer-events: auto;
+            overflow: hidden;
+            border: 4px solid var(--ui-border);
+        }
+
+        .almanac-header {
+            background: var(--ui-border);
+            color: white;
+            padding: 15px 20px;
+            font-size: 24px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .almanac-body {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .animal-grid {
+            width: 40%;
+            background: #f0f0f0;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+            grid-auto-rows: 70px;
+            gap: 10px;
+            overflow-y: auto;
+        }
+
+        .animal-slot {
+            background: white;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 35px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .animal-slot:hover { border-color: var(--ui-border); }
+        .animal-slot.active { background: var(--ui-border); border-color: var(--ui-border); }
+
+        .animal-slot.locked {
+            background: #ddd;
+            cursor: default;
+        }
+        
+        .animal-slot.locked span {
+            filter: brightness(0) opacity(0.2);
+        }
+
+        .almanac-details {
+            width: 60%;
+            padding: 30px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .detail-banner {
+            width: 100%;
+            height: 280px; 
+            object-fit: cover;
+            object-position: center;
+            border-radius: 12px;
+            background: #eee;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            filter: grayscale(100%) contrast(140%) brightness(110%);
+            border: 2px solid #333;
+        }
+
+        .detail-header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 20px;
+        }
+
+        .detail-emoji { font-size: 60px; }
+        .detail-title { font-size: 28px; font-weight: bold; color: #333; }
+        
+        .section-title {
+            font-weight: bold;
+            color: var(--ui-border);
+            text-transform: uppercase;
+            font-size: 14px;
+            margin-top: 15px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 5px;
+            margin-bottom: 5px;
+        }
+
+        .detail-text {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #444;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 5px;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+
+        .stat-item strong {
+            color: var(--ui-border);
+            display: block;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .placeholder-text {
+            text-align: center;
+            color: #999;
+            margin-top: 100px;
+            font-size: 18px;
+            font-style: italic;
+        }
+
+        @keyframes popIn {
+            from { transform: translateX(-50%) scale(0.8); opacity: 0; }
+            to { transform: translateX(-50%) scale(1); opacity: 1; }
+        }
+
+        .speaker-name {
+            font-weight: bold;
+            color: var(--ui-border);
+            margin-bottom: 8px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .dialogue-text {
+            font-size: 16px;
+            line-height: 1.5;
+            color: #333;
+            min-height: 50px;
+        }
+
+        .continue-btn {
+            align-self: flex-end;
+            margin-top: 10px;
+            background: var(--ui-border);
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.1s;
+        }
+
+        .continue-btn:hover { transform: scale(1.05); }
+
+        #inventory-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 500px;
+            height: 60%;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            display: none;
+            flex-direction: column;
+            z-index: 30;
+            pointer-events: auto;
+            overflow: hidden;
+            border: 4px solid var(--ui-border);
+        }
+
+        .inv-grid-container {
+            width: 100%;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            grid-auto-rows: 80px;
+            gap: 10px;
+            overflow-y: auto;
+            background: #f0f2f5;
+        }
+
+        .inv-slot {
+            background: white;
+            border-radius: 12px;
+            border: 2px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s;
+        }
+
+        .inv-slot:hover {
+            border-color: var(--ui-border);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .inv-icon { font-size: 32px; }
+        .inv-count {
+            position: absolute;
+            bottom: 4px;
+            right: 6px;
+            background: var(--ui-border);
+            color: white;
+            font-size: 11px;
+            padding: 2px 5px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+
+        #toast {
+            position: absolute;
+            top: 15%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(45, 52, 54, 0.9);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-weight: 600;
+            font-size: 16px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            z-index: 100;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        
+        #toast.show { opacity: 1; }
+    </style>
+    
+    <!-- FIREBASE MODULES -->
+    <script type="module">
+        import { initializeApp, getApps, getApp, deleteApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, setPersistence, inMemoryPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, onSnapshot, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        window.firebaseApp = {
+            initializeApp, getApps, getApp, deleteApp, getAuth, signInAnonymously, signInWithCustomToken, setPersistence, inMemoryPersistence,
+            getFirestore, collection, doc, setDoc, onSnapshot, serverTimestamp, deleteDoc
+        };
+    </script>
+</head>
+<body>
+
+    <div id="game-container"></div>
+    
+    <!-- LOGIN OVERLAY -->
+    <div id="login-overlay">
+        <div class="login-box">
+            <div class="login-title">Join the Village</div>
+            <input type="text" id="username-input" class="login-input" placeholder="Enter your name..." maxlength="12">
+            
+            <div style="text-align:left; margin-bottom:5px; font-weight:bold; color:#666;">Choose Avatar:</div>
+            <div class="char-grid" id="char-grid">
+                <!-- Populated by JS -->
+            </div>
+            
+            <button class="start-btn" id="start-game-btn">Join World</button>
+        </div>
+    </div>
+
+    <div class="ui-layer" id="ui-layer">
+        <div class="hud">
+            <div class="hud-left">
+                <div class="health-bar" id="health-display">❤️❤️❤️</div>
+                <div class="quest-box">
+                    <div class="quest-title">MMO Adventure</div>
+                    <div class="quest-text">Explore & Chat!</div>
+                </div>
+                <button class="sens-btn" id="sens-toggle">Sens: Med</button>
+                <div class="stance-indicator" id="stance-display">WALK</div>
+            </div>
+            
+            <div style="display:flex; flex-direction:column; align-items:flex-end;">
+                <button class="inventory-btn" id="open-inventory" title="Open Inventory">🎒</button>
+                <button class="almanac-btn" id="open-almanac" title="Open Almanac">📖</button>
+                <div class="online-count" id="online-count"><span class="status-dot" id="status-dot"></span>Online: 1</div>
+            </div>
+        </div>
+        
+        <div id="chat-container">
+            <input type="text" id="chat-input" placeholder="Type a message... (Enter to send)">
+        </div>
+
+        <div id="toast">Too far! Get closer.</div>
+
+        <div class="controls-hint">
+            WASD to Move • SHIFT Run • C Crouch • SPACE Shoo/Use • I Inventory
+        </div>
+    </div>
+
+    <div id="dialogue-overlay">
+        <div class="speaker-name" id="speaker-name">Animal Name</div>
+        <div class="dialogue-text" id="dialogue-text">...</div>
+        <button class="continue-btn" id="close-dialogue">Got it!</button>
+    </div>
+
+    <div id="almanac-modal" class="modal">
+        <div class="almanac-header">
+            <span>Nature Almanac</span>
+            <button class="close-btn" id="close-almanac">✕</button>
+        </div>
+        <div class="almanac-body">
+            <div class="animal-grid" id="almanac-grid"></div>
+            <div class="almanac-details" id="almanac-details">
+                <div class="placeholder-text">Select an unlocked animal to view details.</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="inventory-modal" class="modal">
+        <div class="modal-header">
+            <span>Backpack</span>
+            <button class="close-btn" id="close-inventory">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="inv-grid-container" id="inventory-grid"></div>
+        </div>
+    </div>
+
+<script>
+/**
+ * ANIMAL VILLAGE 3D: MMO WORLD
+ */
+
+const USER_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyB08cbhz70iS1seJOfRWkiKQMKeFh2WtYw",
+  authDomain: "villa-5b3c0.firebaseapp.com",
+  projectId: "villa-5b3c0",
+  storageBucket: "villa-5b3c0.firebasestorage.app",
+  messagingSenderId: "666633719020",
+  appId: "1:666633719020:web:df1570c4bea10cfb3669c9",
+  measurementId: "G-KHBRVW3NHZ"
+}; 
+
+const CONFIG = {
+    worldSize: 1600,
+    colors: {
+        sky: 0x87CEEB,
+        grass: 0x8fb358,
+        grassDark: 0x769446,
+        path: 0xd4b483,
+        water: 0x4FB0E8,
+        rock: 0x888888,
+        fence: 0x8B4513,
+        boat: 0x8B4513
+    },
+    emojis: {
+        player: '🧙‍♂️',
+        farmer: '👨‍🌾', grandma: '👵', boy: '👦', girl: '👧',
+        cow: '🐄', pig: '🐖', chicken: '🐓', dog: '🐕', cat: '🐈',
+        horse: '🐎', sheep: '🐑', goat: '🐐', duck: '🦆', rabbit: '🐇', mouse: '🐁',
+        deer: '🦌', fox: '🦊', wolf: '🐺', bear: '🐻', squirrel: '🐿️', raccoon: '🦝',
+        owl: '🦉', frog: '🐸', turtle: '🐢', eagle: '🦅',
+        lion: '🦁', tiger: '🐅', elephant: '🐘', zebra: '🦓', giraffe: '🦒',
+        monkey: '🐒', panda: '🐼', kangaroo: '🦘', koala: '🐨',
+        tree: '🌳', pine: '🌲', flower: '🌻', mushroom: '🍄', rock: '🪨', cloud: '☁️',
+        flee: '💨', attack: '💢', heart: '❤️',
+        // ITEMS
+        apple: '🍎', carrot: '🥕', corn: '🌽', fish: '🐟', seed: '🌱', flower_item: '🌼'
+    },
+    avatars: ['🧙‍♂️', '👨‍🌾', '👵', '👦', '👧', '🦁', '🦊', '🐼', '🐺', '🐸']
+};
+
+const ITEM_DATA = {
+    apple: { name: "Red Apple", desc: "A sweet, crunchy treat found under trees." },
+    carrot: { name: "Carrot", desc: "Fresh from the farm. Rabbits love these." },
+    corn: { name: "Corn", desc: "Golden grains. Good for chickens." },
+    fish: { name: "Fish", desc: "Freshly caught. Bears might like this." },
+    seed: { name: "Seeds", desc: "Small seeds found in the grass." },
+    flower_item: { name: "Wild Flower", desc: "A pretty flower picked from the field." }
+};
+
+const VILLAGER_DATA = {
+    farmer: { name: "Farmer Joe", lines: ["Here, take some corn for the chickens.", "Apples fall from the big trees.", "Carrots grow in the patch behind me."] },
+    grandma: { name: "Grandma May", lines: ["Have you seen Luna?", "Fresh air today.", "I baked some apple pie.", "Be careful at the pond."] },
+    boy: { name: "Timmy", lines: ["I found a shiny rock!", "Wolves howl to friends.", "Looking for bugs.", "Race you!"] },
+    girl: { name: "Sarah", lines: ["Deer are shy.", "I made a flower crown.", "Found the elephant?", "I love nature."] }
+};
+
+const ANIMAL_DATA = {
+    cow: { name: "Daisy the Cow", temperament: "passive", imageKeyword: "cow", native: "Global", population: "1.5 Billion", discovered: "~10,500 yrs ago", ancestor: "Aurochs", family: "Bovidae", lifestyle: "Diurnal herd animals.", habits: "Chewing cud.", facts: ["Cows have best friends.", "4 stomachs.", "Dream lying down."], society: "Agriculture cornerstone." },
+    pig: { name: "Porkchop the Pig", temperament: "passive", imageKeyword: "pig", native: "Eurasia", population: "1 Billion", discovered: "13,000 BC", ancestor: "Wild Boar", family: "Suidae", lifestyle: "Social.", habits: "Wallows in mud.", facts: ["Smarter than dogs.", "Don't sweat.", "20 sounds."], society: "Intelligent pets." },
+    chicken: { name: "Cluck the Chicken", temperament: "passive", imageKeyword: "chicken", native: "SE Asia", population: "33 Billion", discovered: "8,000 yrs ago", ancestor: "Red Junglefowl", family: "Phasianidae", lifestyle: "Flocks.", habits: "Dust bathing.", facts: ["Relative to T-Rex.", "Dream in color.", "Talk to eggs."], society: "Food security." },
+    dog: { name: "Barnaby the Dog", temperament: "passive", imageKeyword: "dog", native: "Global", population: "900 Million", discovered: "20,000 yrs ago", ancestor: "Gray Wolf", family: "Canidae", lifestyle: "Pack animals.", habits: "Circles before sleeping.", facts: ["Unique nose print.", "Smell feelings.", "First domesticated."], society: "Man's best friend." },
+    cat: { name: "Luna the Cat", temperament: "passive", imageKeyword: "cat", native: "Near East", population: "600 Million", discovered: "7,500 BC", ancestor: "African Wildcat", family: "Felidae", lifestyle: "Crepuscular.", habits: "Kneading.", facts: ["Sleeps 70% of life.", "Purr heals bones.", "Meow for humans."], society: "Internet stars." },
+    horse: { name: "Spirit the Horse", temperament: "passive", imageKeyword: "horse", native: "Eurasia", population: "60 Million", discovered: "3,500 BC", ancestor: "Eohippus", family: "Equidae", lifestyle: "Herds.", habits: "Sleep standing up.", facts: ["Sleep standing up.", "360 vision.", "Ear communication."], society: "Transport." },
+    sheep: { name: "Woolly the Sheep", temperament: "passive", imageKeyword: "sheep", native: "Europe/Asia", population: "1.2 Billion", discovered: "11,000 BC", ancestor: "Mouflon", family: "Bovidae", lifestyle: "Flocking.", habits: "Rectangular pupils.", facts: ["Rectangular pupils.", "Remember faces.", "Self-medicate."], society: "Wool." },
+    goat: { name: "Billy the Goat", temperament: "passive", imageKeyword: "goat", native: "SW Asia", population: "1 Billion", discovered: "10k years ago", ancestor: "Bezoar Ibex", family: "Bovidae", lifestyle: "Curious.", habits: "Climbing.", facts: ["Discovered coffee.", "Climbs trees.", "Accents."], society: "Eco-mowers." },
+    duck: { name: "Quackers the Duck", temperament: "passive", imageKeyword: "duck", native: "Worldwide", population: "Unknown", discovered: "25m years", ancestor: "Waterfowl", family: "Anatidae", lifestyle: "Aquatic.", habits: "Preening.", facts: ["Waterproof.", "3 eyelids.", "Females quack."], society: "Wetlands." },
+    rabbit: { name: "Thumper the Rabbit", temperament: "skittish", imageKeyword: "rabbit", native: "Global", population: "700 Million", discovered: "600 AD", ancestor: "European Rabbit", family: "Leporidae", lifestyle: "Crepuscular.", habits: "Binkying.", facts: ["Teeth grow forever.", "Jumps 3ft.", "Ears regulate heat."], society: "Popular pets." },
+    deer: { name: "Bambi the Deer", temperament: "skittish", imageKeyword: "deer", native: "Global", population: "Stable", discovered: "30m years ago", ancestor: "Syndyoceras", family: "Cervidae", lifestyle: "Browsers.", habits: "Tail flick.", facts: ["Sheds antlers.", "Fast runner.", "Night vision."], society: "Forest symbol." },
+    fox: { name: "Rusty the Fox", temperament: "skittish", imageKeyword: "fox", native: "Northern Hemisphere", population: "Widespread", discovered: "10m years ago", ancestor: "Vulpes riffautae", family: "Canidae", lifestyle: "Solitary.", habits: "Caches food.", facts: ["Magnetic hunting.", "Leg whiskers.", "Warm tail."], society: "Folklore." },
+    wolf: { name: "Alpha the Wolf", temperament: "aggressive", imageKeyword: "wolf", native: "North America", population: "300k", discovered: "800k years ago", ancestor: "Canis etruscus", family: "Canidae", lifestyle: "Packs.", habits: "Howling.", facts: ["Howls to pack.", "Devoted parents.", "Strong bite."], society: "Keystone species." },
+    bear: { name: "Baloo the Bear", temperament: "aggressive", imageKeyword: "bear", native: "Northern Hemisphere", population: "200k", discovered: "30m years ago", ancestor: "Ursavus", family: "Ursidae", lifestyle: "Solitary.", habits: "Hibernation.", facts: ["Great smell.", "Hibernates.", "Intelligent."], society: "Strength symbol." },
+    squirrel: { name: "Nutty the Squirrel", temperament: "skittish", imageKeyword: "squirrel", native: "Global", population: "Abundant", discovered: "36m years ago", ancestor: "Douglassciurus", family: "Sciuridae", lifestyle: "Arboreal.", habits: "Hoarding.", facts: ["Plants trees.", "Teeth grow.", "Rotate ankles."], society: "City dwellers." },
+    frog: { name: "Hoppy the Frog", temperament: "passive", imageKeyword: "frog", native: "Worldwide", population: "Declining", discovered: "250m years ago", ancestor: "Triadobatrachus", family: "Anura", lifestyle: "Amphibious.", habits: "Absorb water.", facts: ["Drink via skin.", "Freeze solid.", "Eat shed skin."], society: "Bio-indicators." },
+    turtle: { name: "Sheldon the Turtle", temperament: "passive", imageKeyword: "turtle", native: "Worldwide", population: "Endangered", discovered: "220m years ago", ancestor: "Odontochelys", family: "Testudines", lifestyle: "Reptile.", habits: "Basking.", facts: ["Shell is bone.", "Live 100+ years.", "No teeth."], society: "Longevity." },
+    lion: { name: "Simba the Lion", temperament: "aggressive", imageKeyword: "lion", native: "Africa", population: "20k", discovered: "1m years ago", ancestor: "Panthera leo", family: "Felidae", lifestyle: "Prides.", habits: "Sleep 20h.", facts: ["Loud roar.", "Females hunt.", "Social cats."], society: "King of beasts." },
+    elephant: { name: "Dumbo the Elephant", temperament: "passive", imageKeyword: "elephant", native: "Africa/Asia", population: "400k", discovered: "5m years ago", ancestor: "Mastodon", family: "Elephantidae", lifestyle: "Matriarchal.", habits: "Trunk use.", facts: ["Largest land animal.", "Good memory.", "Infrasound."], society: "Ecosystem engineers." },
+    giraffe: { name: "Melman the Giraffe", temperament: "passive", imageKeyword: "giraffe", native: "Africa", population: "117k", discovered: "1m years ago", ancestor: "Samotherium", family: "Giraffidae", lifestyle: "Towers.", habits: "Hum at night.", facts: ["Purple tongue.", "Short sleep.", "Unique spots."], society: "Tallest animal." },
+    panda: { name: "Po the Panda", temperament: "passive", imageKeyword: "giant panda", native: "China", population: "1800", discovered: "1869", ancestor: "Kretzoiarctos", family: "Ursidae", lifestyle: "Solitary.", habits: "Handstands.", facts: ["Eats bamboo.", "Tiny cubs.", "False thumb."], society: "Conservation icon." },
+    monkey: { name: "George the Monkey", temperament: "skittish", imageKeyword: "monkey", native: "Tropics", population: "Varies", discovered: "60m years ago", ancestor: "Simiiformes", family: "Primates", lifestyle: "Social.", habits: "Tools.", facts: ["Peels bananas.", "Fingerprints.", "Expressions."], society: "Close relatives." },
+    zebra: { name: "Marty the Zebra", temperament: "skittish", imageKeyword: "zebra", native: "Africa", population: "500k", discovered: "4m years ago", ancestor: "Equids", family: "Equidae", lifestyle: "Herds.", habits: "Defense.", facts: ["Unique stripes.", "Black skin.", "Zig-zag run."], society: "Migration icon." },
+    kangaroo: { name: "Jack the Kangaroo", temperament: "skittish", imageKeyword: "kangaroo", native: "Australia", population: "50m", discovered: "15m years ago", ancestor: "Macropodidae", family: "Macropodidae", lifestyle: "Mobs.", habits: "Licking.", facts: ["Forward only.", "Tiny baby.", "Fast hop."], society: "Aus symbol." },
+    koala: { name: "Koko the Koala", temperament: "passive", imageKeyword: "koala", native: "Australia", population: "300k", discovered: "1816", ancestor: "Diprotodon", family: "Phascolarctidae", lifestyle: "Solitary.", habits: "Tree hugging.", facts: ["Fingerprints.", "Sleeps 20h.", "Toxic diet."], society: "Conservation icon." }
+};
+
+class Game3D {
+    constructor() {
+        this.container = document.getElementById('game-container');
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(CONFIG.colors.sky);
+        this.scene.fog = new THREE.Fog(CONFIG.colors.sky, 400, 1500);
+
+        this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 3000);
+        this.camera.position.set(0, 300, 300);
+        
+        this.cameraAngle = 0;
+        this.cameraPitch = 0.6;
+        this.orbitRadius = 250; 
+        
+        this.isRotating = false;
+        
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.container.appendChild(this.renderer.domElement);
+
+        this.keys = {};
+        this.mouse = new THREE.Vector2();
+        this.raycaster = new THREE.Raycaster();
+        this.touchDistStart = 0; 
+        
+        this.player = null;
+        this.boat = null;
+        this.isBoating = false;
+        this.animals = [];
+        this.villagers = []; 
+        this.colliders = []; 
+        this.sceneryColliders = []; 
+        this.collectables = []; 
+        
+        this.isDialogueOpen = false;
+        this.isAlmanacOpen = false;
+        this.isInventoryOpen = false; 
+        this.unlockedAnimals = new Set();
+        this.inventory = {}; 
+        this.toastTimer = null;
+        this.chatOpen = false;
+
+        this.health = 3;
+        this.lastDamageTime = 0;
+        this.playerVelocityY = 0;
+        this.moveState = 'walk'; 
+        
+        this.sensitivityIndex = 1;
+        this.sensitivityValues = [0.004, 0.012, 0.024];
+        this.sensitivityLabels = ["Sens: Low", "Sens: Med", "Sens: High"];
+
+        this.remotePlayers = {}; 
+        this.userId = null;
+        this.lastPosUpdate = 0;
+        this.lastSentPosition = new THREE.Vector3(); // OPTIMIZATION: Track last sent pos
+        this.db = null;
+        this.isOffline = false;
+        this.connecting = true;
+        
+        this.appId = 'animal-village-global';
+
+        // Customization
+        this.playerName = "Player";
+        this.playerAvatar = CONFIG.emojis.player;
+        this.isJoined = false;
+
+        this.initLights();
+        this.initWorld();
+        this.initInputs();
+        this.initUI();
+        
+        // Start animate loop immediately for background, but don't spawn player yet
+        this.animate = this.animate.bind(this);
+        this.animate();
+
+        // Stale Player Check (Check every 2s, timeout 10s)
+        setInterval(() => this.cleanupStalePlayers(), 2000);
+        
+        // Heartbeat interval (separate from render loop)
+        setInterval(() => this.syncPosition(true), 2500); 
+    }
+
+    joinGame(name, avatar) {
+        this.playerName = name || "Player";
+        this.playerAvatar = avatar || CONFIG.emojis.player;
+        this.isJoined = true;
+        
+        // Hide overlay, show UI
+        document.getElementById('login-overlay').style.display = 'none';
+        document.querySelector('.ui-layer').style.display = 'flex';
+        
+        this.createLocalPlayer();
+        this.initMultiplayer();
+    }
+
+    createLocalPlayer() {
+        const playerObj = this.createSprite(this.playerAvatar, 40, 0, -250);
+        this.player = playerObj.group;
+        playerObj.sprite.center.set(0.5, 0.5);
+        
+        // Add name tag to self
+        const nameTag = this.createNameTag(this.playerName);
+        nameTag.position.y = 65;
+        this.player.add(nameTag);
+        
+        // Initialize tracking for optimization
+        this.lastSentPosition.copy(this.player.position);
+    }
+
+    createNameTag(name) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256; 
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        ctx.font = "Bold 24px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        
+        // Stroke for outline
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 4;
+        ctx.strokeText(name, 128, 32);
+        
+        // Fill
+        ctx.fillStyle = 'white';
+        ctx.fillText(name, 128, 32);
+        
+        const tex = new THREE.CanvasTexture(canvas);
+        const mat = new THREE.SpriteMaterial({ map: tex });
+        const sprite = new THREE.Sprite(mat);
+        sprite.scale.set(80, 20, 1);
+        return sprite;
+    }
+
+    async initMultiplayer() {
+        const checkModules = setInterval(async () => {
+            if (window.firebaseApp && window.firebaseApp.initializeApp) {
+                clearInterval(checkModules);
+                
+                const { initializeApp, getApps, deleteApp, getAuth, signInAnonymously, setPersistence, inMemoryPersistence, getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, serverTimestamp } = window.firebaseApp;
+
+                let firebaseConfig = USER_FIREBASE_CONFIG;
+                let isCustomConfig = true;
+
+                if (!firebaseConfig) {
+                    isCustomConfig = false;
+                    try {
+                        if (typeof __firebase_config !== 'undefined') {
+                            firebaseConfig = JSON.parse(__firebase_config);
+                        }
+                    } catch (e) { }
+                }
+                
+                if (!firebaseConfig) {
+                    this.startOfflineMode("No Config Found");
+                    return;
+                }
+
+                try {
+                    // REUSE OR NEW STRATEGY (Stable)
+                    let app;
+                    const appName = "AnimalVillage_MMO_Fixed";
+                    const existingApp = getApps().find(a => a.name === appName);
+                    
+                    if(existingApp) {
+                        app = existingApp;
+                    } else {
+                        app = initializeApp(firebaseConfig, appName);
+                    }
+
+                    const auth = getAuth(app);
+                    await setPersistence(auth, inMemoryPersistence); // Critical for incognito
+
+                    this.db = getFirestore(app);
+                    this.appId = 'animal-village-global';
+
+                    // Authenticate if needed
+                    if (!auth.currentUser) {
+                         await signInAnonymously(auth);
+                    }
+
+                    if (!auth.currentUser) throw new Error("Auth failed");
+                    this.userId = auth.currentUser.uid;
+                    this.connecting = false;
+                    console.log("[MMO] Connected as:", this.userId);
+                    
+                    // Update player info immediately
+                    this.syncPosition(true);
+                    
+                    const playersRef = collection(this.db, 'artifacts', this.appId, 'public', 'data', 'players');
+                    
+                    onSnapshot(playersRef, (snapshot) => {
+                        const onlineCount = snapshot.size;
+                        const countEl = document.getElementById('online-count');
+                        if (countEl) countEl.innerHTML = `<span class="status-dot" style="background-color:#2ecc71"></span>Online: ${onlineCount}`;
+
+                        snapshot.docChanges().forEach((change) => {
+                            const pid = change.doc.id;
+                            if (pid === this.userId) return;
+
+                            const data = change.doc.data();
+                            if (change.type === "added") this.addRemotePlayer(pid, data);
+                            if (change.type === "modified") this.updateRemotePlayer(pid, data);
+                            if (change.type === "removed") this.removeRemotePlayer(pid);
+                        });
+                    }, (error) => {
+                        console.error("[MMO] Listener Error:", error);
+                        if (error.code === 'permission-denied') {
+                             this.startOfflineMode("DB Locked");
+                        } else {
+                             // Don't kill connection on network blip
+                        }
+                    });
+
+                    // Cleanup presence
+                    window.addEventListener('beforeunload', () => {
+                        if(this.db && this.userId) {
+                             const pRef = doc(this.db, 'artifacts', this.appId, 'public', 'data', 'players', this.userId);
+                             deleteDoc(pRef).catch(()=>{});
+                        }
+                    });
+
+                } catch (e) {
+                    console.error("[MMO] Init Critical Failure:", e);
+                    this.startOfflineMode("Init Failed");
+                }
+            }
+        }, 100);
+    }
+
+    startOfflineMode(reason = "Offline Mode") {
+        if (this.isOffline) return;
+        this.isOffline = true;
+        this.connecting = false;
+        const countEl = document.getElementById('online-count');
+        if (countEl) countEl.innerHTML = `<span class="status-dot" style="background-color:#e74c3c"></span>${reason}`;
+        this.showToast(`${reason} - Single Player`);
+        // NO BOTS
+    }
+
+    addRemotePlayer(id, data) {
+        // Use custom avatar if provided
+        const avatar = data.avatar || CONFIG.emojis.player;
+        const spriteObj = this.createSprite(avatar, 40, data.x, data.z);
+        // Do NOT grey out
+        
+        // Add Name Tag
+        if (data.username) {
+            const nameTag = this.createNameTag(data.username);
+            nameTag.position.y = 65;
+            spriteObj.group.add(nameTag);
+        }
+
+        // Add Chat Bubble placeholder
+        const chatCanvas = document.createElement('canvas');
+        chatCanvas.width = 256; chatCanvas.height = 64;
+        const chatTex = new THREE.CanvasTexture(chatCanvas);
+        const chatMat = new THREE.SpriteMaterial({ map: chatTex, visible: false });
+        const chatSprite = new THREE.Sprite(chatMat);
+        chatSprite.scale.set(80, 20, 1);
+        chatSprite.position.y = 50;
+        spriteObj.group.add(chatSprite);
+
+        this.remotePlayers[id] = {
+            mesh: spriteObj.group,
+            chatSprite: chatSprite,
+            targetPos: new THREE.Vector3(data.x, data.y || 0, data.z),
+            lastUpdate: Date.now() // Track local timestamp for stale check
+        };
+        
+        // If data has timestamp, use it
+        if(data.lastUpdate && data.lastUpdate.seconds) {
+             this.remotePlayers[id].serverLastUpdate = data.lastUpdate.seconds;
+        }
+    }
+
+    updateRemotePlayer(id, data) {
+        if (this.remotePlayers[id]) {
+            this.remotePlayers[id].targetPos.set(data.x, data.y || 0, data.z);
+            // Update local timestamp because we heard from them
+            this.remotePlayers[id].lastUpdate = Date.now();
+            
+            if(data.msg) {
+                this.showChatBubble(this.remotePlayers[id].mesh, data.msg);
+            }
+            // Could update avatar/name if changed, but usually static for session
+        }
+    }
+
+    removeRemotePlayer(id) {
+        if (this.remotePlayers[id]) {
+            this.scene.remove(this.remotePlayers[id].mesh);
+            delete this.remotePlayers[id];
+        }
+    }
+    
+    // Check for players who haven't updated in > 10 seconds
+    cleanupStalePlayers() {
+        const now = Date.now();
+        const timeout = 10000; 
+        
+        Object.keys(this.remotePlayers).forEach(pid => {
+            const player = this.remotePlayers[pid];
+            if (now - player.lastUpdate > timeout) {
+                // console.log(`Removing stale player: ${pid}`);
+                this.removeRemotePlayer(pid);
+            }
+        });
+    }
+
+    sendChat(text) {
+        if (!text) return;
+        this.showChatBubble(this.player, text);
+        if (this.userId && this.db && !this.isOffline) {
+             const pRef = window.firebaseApp.doc(this.db, 'artifacts', this.appId, 'public', 'data', 'players', this.userId);
+             window.firebaseApp.setDoc(pRef, { msg: text }, { merge: true }).catch(()=>{});
+        }
+    }
+
+    showChatBubble(playerMesh, text) {
+        // Find chat sprite
+        let chatSprite = null;
+        playerMesh.children.forEach(c => {
+             if (c.material && c.material.map && c.material.map.image && c.material.map.image.width === 256) {
+                 chatSprite = c;
+             }
+        });
+
+        if(!chatSprite) return;
+
+        const canvas = chatSprite.material.map.image;
+        this.drawChatBubble(canvas, text);
+        chatSprite.material.map.needsUpdate = true;
+        chatSprite.visible = true;
+        
+        setTimeout(() => { 
+            if(chatSprite) chatSprite.visible = false; 
+        }, 4000);
+    }
+
+    drawChatBubble(canvas, text) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0,0,256,64);
+        
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.beginPath();
+        ctx.roundRect(10, 10, 236, 44, 10);
+        ctx.fill();
+
+        ctx.fillStyle = 'white';
+        ctx.font = '20px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, 128, 32);
+    }
+
+    syncPosition(force = false) {
+        if (!this.userId || !this.db || this.isOffline || !this.player) return;
+        const now = Date.now();
+        
+        // OPTIMIZATION: Only send if moved > 0.5 units OR forced (heartbeat)
+        // AND limit rate to 500ms
+        const movedEnough = this.player.position.distanceTo(this.lastSentPosition) > 0.5;
+        const timeElapsed = now - this.lastPosUpdate;
+
+        if (force || (movedEnough && timeElapsed > 500)) { 
+            this.lastPosUpdate = now;
+            this.lastSentPosition.copy(this.player.position);
+
+            const pRef = window.firebaseApp.doc(this.db, 'artifacts', this.appId, 'public', 'data', 'players', this.userId);
+            window.firebaseApp.setDoc(pRef, {
+                x: this.player.position.x,
+                y: this.player.position.y,
+                z: this.player.position.z,
+                username: this.playerName, 
+                avatar: this.playerAvatar,
+                lastUpdate: window.firebaseApp.serverTimestamp()
+            }, { merge: true }).catch(()=>{});
+        }
+    }
+
+    initLights() {
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        this.scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+        dirLight.position.set(300, 500, 200);
+        dirLight.castShadow = true;
+        this.scene.add(dirLight);
+    }
+
+    createEmojiTexture(emoji, size = 128) {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        ctx.font = `${size * 0.8}px Segoe UI Emoji, Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.clearRect(0,0,size,size);
+        ctx.fillText(emoji, size/2, size/2 + size*0.1);
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.minFilter = THREE.LinearFilter;
+        return tex;
+    }
+
+    createStatusSprite(type) {
+        const emoji = CONFIG.emojis[type];
+        const map = this.createEmojiTexture(emoji, 64);
+        const mat = new THREE.SpriteMaterial({ map: map });
+        const sprite = new THREE.Sprite(mat);
+        sprite.scale.set(20, 20, 1);
+        sprite.visible = false;
+        return sprite;
+    }
+
+    createSprite(emoji, scale, x, z) {
+        const map = this.createEmojiTexture(emoji);
+        const material = new THREE.SpriteMaterial({ map: map });
+        const sprite = new THREE.Sprite(material);
+        sprite.scale.set(scale, scale, 1);
+        const shadowGeo = new THREE.CircleGeometry(scale * 0.3, 16);
+        const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 });
+        const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+        shadow.rotation.x = -Math.PI / 2;
+        shadow.position.y = 1;
+        const group = new THREE.Group();
+        group.add(sprite);
+        group.add(shadow);
+        group.position.set(x, 0, z);
+        sprite.position.set(0, scale/2, 0); 
+        group.userData = { isInteractable: false }; 
+        sprite.userData = { parentGroup: group }; 
+        this.scene.add(group);
+        return { group, sprite };
+    }
+
+    createHouse(x, z) {
+        const houseGroup = new THREE.Group();
+        const wallGeo = new THREE.BoxGeometry(80, 60, 80);
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0xf5f5dc }); 
+        const walls = new THREE.Mesh(wallGeo, wallMat);
+        walls.position.y = 30; 
+        houseGroup.add(walls);
+        const roofGeo = new THREE.ConeGeometry(70, 40, 4); 
+        const roofMat = new THREE.MeshStandardMaterial({ color: 0x8B4513 }); 
+        const roof = new THREE.Mesh(roofGeo, roofMat);
+        roof.position.y = 60 + 20; roof.rotation.y = Math.PI / 4; 
+        houseGroup.add(roof);
+        const doorGeo = new THREE.BoxGeometry(20, 40, 5);
+        const doorMat = new THREE.MeshStandardMaterial({ color: 0x4a3c31 }); 
+        const door = new THREE.Mesh(doorGeo, doorMat);
+        door.position.set(0, 20, 40); houseGroup.add(door);
+        houseGroup.position.set(x, 0, z);
+        this.scene.add(houseGroup);
+        this.colliders.push({ type: 'house', x: x, z: z, radius: 55 });
+    }
+
+    createPort(x, z, angle) { const portGroup = new THREE.Group(); const dockGeo = new THREE.BoxGeometry(40, 2, 100); const dockMat = new THREE.MeshStandardMaterial({ color: 0x8B4513 }); const dock = new THREE.Mesh(dockGeo, dockMat); dock.position.y = 0.5; portGroup.add(dock); portGroup.position.set(x, 0, z); portGroup.rotation.y = angle; this.scene.add(portGroup); this.sceneryColliders.push({ type: 'port', x: x, z: z, radius: 60 }); }
+    createBoat(x, z, rotation=0) { const boatGroup = new THREE.Group(); const hullGeo = new THREE.BoxGeometry(40, 10, 60); const hullMat = new THREE.MeshStandardMaterial({ color: CONFIG.colors.boat }); const hull = new THREE.Mesh(hullGeo, hullMat); hull.position.y = 5; boatGroup.add(hull); boatGroup.position.set(x, 0, z); boatGroup.rotation.y = rotation; boatGroup.userData = { type: 'boat' }; this.scene.add(boatGroup); this.boat = boatGroup; }
+    createLake(x, z, radius) { const geo = new THREE.CylinderGeometry(radius, radius, 5, 32); const mat = new THREE.MeshStandardMaterial({ color: CONFIG.colors.water }); const lake = new THREE.Mesh(geo, mat); lake.position.set(x, -2, z); this.scene.add(lake); this.colliders.push({ type: 'water', x: x, z: z, radius: radius }); }
+    createRock(x, z, size) { const geo = new THREE.DodecahedronGeometry(size); const mat = new THREE.MeshStandardMaterial({ color: CONFIG.colors.rock }); const rock = new THREE.Mesh(geo, mat); rock.position.set(x, size/2, z); this.scene.add(rock); this.colliders.push({ type: 'rock', x: x, z: z, radius: size }); }
+    createFence(x1, x2, z1, z2) { const geo = new THREE.BoxGeometry(10, 30, 10); const mat = new THREE.MeshStandardMaterial({ color: CONFIG.colors.fence }); const post = new THREE.Mesh(geo, mat); post.position.set(x1, 15, z1); this.scene.add(post); this.colliders.push({ type: 'fence', x: x1, z: z1, radius: 8 }); }
+
+    // NEW: SPAWN COLLECTABLE ITEMS
+    spawnCollectables() {
+        // Apples under trees
+        this.scene.children.forEach(obj => {
+            if (obj.userData && obj.userData.parentGroup) {
+                // If it's a tree (we check collision list for tree locations as well, or just random)
+                // For simplicity, spawn random apples
+            }
+        });
+
+        // Spawn 30 Random Apples near center
+        for(let i=0; i<30; i++) {
+             const x = (Math.random() - 0.5) * CONFIG.worldSize * 0.8;
+             const z = (Math.random() - 0.5) * CONFIG.worldSize * 0.8;
+             if(this.checkGenerationOverlap(x, z, 10)) {
+                 this.createItem('apple', x, z);
+             }
+        }
+        
+        // Carrots in Farm
+        for(let i=0; i<10; i++) {
+             const x = -200 + Math.random() * 100;
+             const z = 200 + Math.random() * 100;
+             this.createItem('carrot', x, z);
+        }
+
+        // Flowers
+        for(let i=0; i<20; i++) {
+            const x = (Math.random() - 0.5) * CONFIG.worldSize;
+            const z = (Math.random() - 0.5) * CONFIG.worldSize;
+             if(this.checkGenerationOverlap(x, z, 10)) {
+                 this.createItem('flower_item', x, z);
+             }
+        }
+    }
+
+    createItem(itemId, x, z) {
+        const emoji = CONFIG.emojis[itemId] || '📦';
+        const obj = this.createSprite(emoji, 20, x, z);
+        
+        // Make it float/bounce
+        obj.group.position.y = 5;
+        obj.group.userData = { type: 'collectable', itemId: itemId };
+        obj.sprite.userData = { parentGroup: obj.group };
+
+        // Simple float animation
+        obj.group.update = () => {
+            obj.group.position.y = 5 + Math.sin(Date.now() * 0.005) * 2;
+        };
+        
+        this.collectables.push(obj.group);
+    }
+
+    addToInventory(itemId, amount = 1) {
+        if (!this.inventory[itemId]) this.inventory[itemId] = 0;
+        this.inventory[itemId] += amount;
+        
+        const data = ITEM_DATA[itemId];
+        this.showToast(`Picked up ${data ? data.name : itemId}`);
+        this.updateInventoryUI();
+    }
+
+    updateInventoryUI() {
+        const grid = document.getElementById('inventory-grid');
+        grid.innerHTML = '';
+        
+        for (const [id, count] of Object.entries(this.inventory)) {
+            if (count > 0) {
+                const data = ITEM_DATA[id] || { name: id, desc: "" };
+                const slot = document.createElement('div');
+                slot.className = 'inv-slot';
+                slot.innerHTML = `
+                    <div class="inv-icon">${CONFIG.emojis[id] || '❓'}</div>
+                    <div class="inv-count">${count}</div>
+                `;
+                slot.title = `${data.name}: ${data.desc}`;
+                grid.appendChild(slot);
+            }
+        }
+    }
+
+    spawnVillagers() {
+        this.spawnVillagerEntity('farmer', -150, 0);
+        this.spawnVillagerEntity('grandma', 180, -300); 
+        this.spawnVillagerEntity('boy', 100, 50); 
+        this.spawnVillagerEntity('girl', 100, 150);
+    }
+
+    spawnVillagerEntity(type, x, z) {
+        const obj = this.createSprite(CONFIG.emojis[type], 40, x, z);
+        obj.group.userData = { type: 'villager', villagerType: type };
+        obj.sprite.userData = { parentGroup: obj.group };
+        this.colliders.push({ type: 'villager', x: x, z: z, radius: 15 });
+        this.villagers.push(obj.group);
+    }
+
+    initWorld() {
+        // [Terrain init]
+        const groundGeo = new THREE.PlaneGeometry(CONFIG.worldSize, CONFIG.worldSize);
+        const groundMat = new THREE.MeshStandardMaterial({ color: CONFIG.colors.grass });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        this.scene.add(ground);
+
+        this.createLake(-400, -400, 350); 
+        this.createLake(500, 300, 100);   
+        
+        this.createFence(-200, 200, 200, 200); 
+        this.createFence(-200, -40, -200, -200); 
+        this.createFence(40, 200, -200, -200);   
+        this.createFence(-200, -200, -200, 200); 
+
+        const path1Geo = new THREE.PlaneGeometry(30, 200);
+        const pathMat = new THREE.MeshStandardMaterial({ color: CONFIG.colors.path });
+        const path1 = new THREE.Mesh(path1Geo, pathMat);
+        path1.position.set(0, 0.2, -275); 
+        path1.rotation.x = -Math.PI / 2;
+        this.scene.add(path1);
+
+        const path2Geo = new THREE.PlaneGeometry(160, 30);
+        const path2 = new THREE.Mesh(path2Geo, pathMat);
+        path2.position.set(0, 0.2, -350); 
+        path2.rotation.x = -Math.PI / 2;
+        this.scene.add(path2);
+
+        this.createHouse(80, -350);
+        this.createPort(-80, -350, Math.PI / 2); 
+        this.createBoat(-140, -350, Math.PI / 2);
+
+        this.spawnVillagers();
+
+        // Rocks
+        for(let i=0; i<30; i++) {
+            const r = 200 + Math.random() * 600; 
+            const theta = Math.random() * Math.PI * 2;
+            const x = Math.cos(theta) * r;
+            const z = Math.sin(theta) * r;
+            if(this.checkGenerationOverlap(x, z, 50)) {
+                this.createRock(x, z, 20 + Math.random()*30);
+            }
+        }
+
+        // Trees
+        for (let i = 0; i < 120; i++) {
+            const x = (Math.random() - 0.5) * CONFIG.worldSize;
+            const z = (Math.random() - 0.5) * CONFIG.worldSize;
+            
+            if (this.checkGenerationOverlap(x, z, 30)) {
+                const isTree = Math.random() > 0.4;
+                const emoji = isTree ? (Math.random() > 0.5 ? CONFIG.emojis.tree : CONFIG.emojis.pine) : CONFIG.emojis.flower;
+                const scale = isTree ? 80 + Math.random() * 40 : 25;
+                
+                if(isTree) {
+                    this.colliders.push({ type: 'tree', x: x, z: z, radius: 10 });
+                } else {
+                    this.sceneryColliders.push({ type: 'flower', x: x, z: z, radius: 20 });
+                }
+                this.createSprite(emoji, scale, x, z);
+            }
+        }
+
+        this.spawnAnimals();
+        this.spawnCollectables(); // NEW
+
+        const playerObj = this.createSprite(CONFIG.emojis.player, 40, 0, -250);
+        this.player = playerObj.group;
+        playerObj.sprite.center.set(0.5, 0.5);
+
+        this.createClouds();
+    }
+
+    checkGenerationOverlap(x, z, radius) {
+        if (this.checkCollision(x, z, radius)) return false;
+        for(let s of this.sceneryColliders) {
+            const dx = x - s.x;
+            const dz = z - s.z;
+            const dist = Math.sqrt(dx*dx + dz*dz);
+            if(dist < (s.radius + radius)) return false;
+        }
+        if (this.checkPathOverlap(x, z, radius)) return false;
+        return true;
+    }
+
+    checkPathOverlap(x, z, padding) {
+        const p1_minX = -15 - padding;
+        const p1_maxX = 15 + padding;
+        const p1_minZ = -375 - padding;
+        const p1_maxZ = -175 + padding;
+        if (x > p1_minX && x < p1_maxX && z > p1_minZ && z < p1_maxZ) return true;
+        const p2_minX = -80 - padding;
+        const p2_maxX = 80 + padding;
+        const p2_minZ = -365 - padding;
+        const p2_maxZ = -335 + padding;
+        if (x > p2_minX && x < p2_maxX && z > p2_minZ && z < p2_maxZ) return true;
+        return false;
+    }
+
+    checkCollision(x, z, radius) {
+        for(let c of this.colliders) {
+            const dx = x - c.x;
+            const dz = z - c.z;
+            const dist = Math.sqrt(dx*dx + dz*dz);
+            if(dist < (c.radius + radius)) {
+                return c; 
+            }
+        }
+        return null;
+    }
+
+    isLocationFree(x, z, radius) {
+        if (this.checkCollision(x, z, radius)) return false;
+        for (let a of this.animals) {
+            const dx = x - a.position.x;
+            const dz = z - a.position.z;
+            const dist = Math.sqrt(dx*dx + dz*dz);
+            if (dist < radius * 2) return false;
+        }
+        return true;
+    }
+
+    spawnAnimals() {
+        const farmAnimals = ['cow', 'pig', 'chicken', 'sheep', 'goat', 'horse', 'rabbit', 'dog', 'cat'];
+        const wildAnimals = ['deer', 'fox', 'wolf', 'bear', 'squirrel', 'lion', 'elephant', 'giraffe', 'zebra', 'monkey', 'panda', 'kangaroo'];
+        
+        farmAnimals.forEach(type => {
+            const count = 1 + Math.floor(Math.random() * 2);
+            for(let i=0; i<count; i++) {
+                this.spawnSingleAnimal(type, -300, 100, -300, 300); 
+            }
+        });
+
+        wildAnimals.forEach(type => {
+            const count = 1 + Math.floor(Math.random() * 2);
+            for(let i=0; i<count; i++) {
+                let x, z;
+                let found = false;
+                for(let k=0; k<20; k++) { 
+                    x = (Math.random() - 0.5) * CONFIG.worldSize * 0.9;
+                    z = (Math.random() - 0.5) * CONFIG.worldSize * 0.9;
+                    if(x > -350 && x < 150 && z > -350 && z < 350) continue; 
+                    if(this.checkGenerationOverlap(x, z, 30)) {
+                        let overlapAnimal = false;
+                        for(let a of this.animals) {
+                            if(a.position.distanceTo(new THREE.Vector3(x, 0, z)) < 40) overlapAnimal = true;
+                        }
+                        if(!overlapAnimal) {
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                if(found) this.spawnAnimalEntity(type, x, z);
+            }
+        });
+    }
+
+    spawnSingleAnimal(type, minX, maxX, minZ, maxZ) {
+        let x, z;
+        let found = false;
+        for(let k=0; k<10; k++) {
+            x = minX + Math.random() * (maxX - minX);
+            z = minZ + Math.random() * (maxZ - minZ);
+            if(this.checkGenerationOverlap(x, z, 30)) {
+                found = true;
+                break;
+            }
+        }
+        if(found) {
+            this.spawnAnimalEntity(type, x, z);
+        }
+    }
+
+    spawnAnimalEntity(type, x, z) {
+        const obj = this.createSprite(CONFIG.emojis[type], 35, x, z);
+        const data = ANIMAL_DATA[type];
+        
+        obj.group.userData = { 
+            type: 'animal', 
+            animalType: type,
+            temperament: data.temperament,
+            state: 'idle', 
+            calmTimer: 0,
+            hurtTimer: 0,
+            lethalIntent: Math.random() < 0.3,
+            vy: 0 // Vertical velocity for falling
+        };
+        obj.sprite.userData = { parentGroup: obj.group };
+
+        const fleeStatus = this.createStatusSprite('flee');
+        fleeStatus.position.y = 45;
+        obj.group.add(fleeStatus);
+        
+        const attackStatus = this.createStatusSprite('attack');
+        attackStatus.position.y = 45;
+        obj.group.add(attackStatus);
+
+        obj.group.userData.statusSprites = { flee: fleeStatus, attack: attackStatus };
+
+        // Identify if this animal is allowed in water
+        const isAquatic = ['duck', 'frog', 'turtle'].includes(type);
+
+        obj.group.update = () => {
+            // --- FALLING LOGIC ---
+            const limit = CONFIG.worldSize / 2;
+            const isOffWorld = Math.abs(obj.group.position.x) > limit || Math.abs(obj.group.position.z) > limit;
+
+            if (isOffWorld) {
+                // Apply Gravity
+                obj.group.userData.vy -= 1.5;
+                obj.group.position.y += obj.group.userData.vy;
+
+                // Respawn if too low (Lowered to -25000 for longer fall duration)
+                if (obj.group.position.y < -25000) {
+                    // Respawn at a random safe spot near center
+                    obj.group.position.set((Math.random() - 0.5) * 400, 0, (Math.random() - 0.5) * 400);
+                    obj.group.userData.vy = 0;
+                    obj.group.userData.state = 'idle';
+                    obj.group.userData.hurtTimer = 0;
+                }
+                return; // Skip rest of logic while falling
+            } else {
+                obj.group.position.y = 0;
+                obj.group.userData.vy = 0;
+            }
+
+            const temperament = obj.group.userData.temperament;
+            const dist = obj.group.position.distanceTo(this.player.position);
+            const isTamed = this.unlockedAnimals.has(type);
+            const isHurt = obj.group.userData.hurtTimer > 0;
+            let cooldownRate = 1; 
+            
+            // --- STEALTH & COOLDOWN LOGIC (NEW) ---
+            if (this.moveState === 'crouch') {
+                if (obj.group.userData.lethalIntent) {
+                    cooldownRate = 2; 
+                } else {
+                    cooldownRate = 5; 
+                }
+            }
+
+            if (isHurt) {
+                obj.group.userData.hurtTimer -= cooldownRate;
+                if (obj.group.userData.hurtTimer < 0) obj.group.userData.hurtTimer = 0;
+            }
+
+            // --- STATE MACHINE ---
+            if (obj.group.userData.hurtTimer > 0) {
+                if (obj.group.userData.hurtReaction) {
+                    obj.group.userData.state = obj.group.userData.hurtReaction;
+                } else {
+                    obj.group.userData.state = (temperament === 'aggressive') ? 'chase' : 'flee';
+                }
+            } else if (isTamed) {
+                obj.group.userData.state = 'idle';
+            } else {
+                // --- STEALTH LOGIC IMPLEMENTATION ---
+                let detectionRadius = 200; 
+                if (this.moveState === 'run') detectionRadius = 350;
+                else if (this.moveState === 'crouch') detectionRadius = 100;
+
+                if (dist < detectionRadius) {
+                    let triggerChance = 0.02; 
+                    if (this.moveState === 'run') triggerChance = 0.1;
+                    else if (this.moveState === 'crouch') triggerChance = 0.005;
+
+                    if (Math.random() < triggerChance) {
+                        if (temperament === 'skittish') {
+                            obj.group.userData.state = 'flee';
+                            obj.group.userData.calmTimer = 100;
+                        } else if (temperament === 'aggressive') {
+                            obj.group.userData.state = 'chase';
+                            obj.group.userData.calmTimer = 100;
+                        }
+                    }
+                } else {
+                    if (obj.group.userData.calmTimer > 0) {
+                        obj.group.userData.calmTimer -= cooldownRate;
+                    } else {
+                        obj.group.userData.state = 'idle';
+                    }
+                }
+            }
+
+            // --- MOVEMENT EXECUTION ---
+            const state = obj.group.userData.state;
+            const speed = (state === 'chase') ? 1.8 : 2.2; 
+            
+            if (state === 'flee' || state === 'chase') {
+                obj.group.userData.statusSprites.flee.visible = (state === 'flee');
+                obj.group.userData.statusSprites.attack.visible = (state === 'chase');
+
+                let dx, dz;
+                if (state === 'flee') {
+                    dx = obj.group.position.x - this.player.position.x;
+                    dz = obj.group.position.z - this.player.position.z;
+                } else {
+                    dx = this.player.position.x - obj.group.position.x;
+                    dz = this.player.position.z - obj.group.position.z;
+                }
+
+                const len = Math.sqrt(dx*dx + dz*dz) || 1;
+                const moveX = (dx/len) * speed;
+                const moveZ = (dz/len) * speed;
+
+                if (state === 'chase' && dist < 20) {
+                    this.gameInstance.takeDamage(obj.group.userData.lethalIntent);
+                    
+                    const pushStr = 15;
+                    this.player.position.x += (dx/len) * pushStr;
+                    this.player.position.z += (dz/len) * pushStr;
+
+                    if (!obj.group.userData.lethalIntent && this.gameInstance.health === 1) {
+                        obj.group.userData.state = 'idle';
+                        obj.group.userData.hurtTimer = 0; 
+                        obj.group.userData.calmTimer = 200; 
+                        this.showToast(`The ${type} showed mercy.`);
+                    }
+                    else if (!obj.group.userData.lethalIntent && Math.random() < 0.4) {
+                        obj.group.userData.state = 'flee';
+                        obj.group.userData.hurtReaction = 'flee'; 
+                        obj.group.userData.calmTimer = 150;
+                    }
+                }
+
+                const limit = CONFIG.worldSize / 2 - 20;
+                
+                const nextX = obj.group.position.x + moveX;
+                const colX = this.checkCollision(nextX, obj.group.position.z, 20);
+                let blocked = false;
+                if (colX) {
+                     if (colX.type === 'water' && !isAquatic) blocked = true;
+                     else if (colX.type !== 'water') blocked = true;
+                }
+                if (!blocked) obj.group.position.x = nextX;
+
+                const nextZ = obj.group.position.z + moveZ;
+                const colZ = this.checkCollision(obj.group.position.x, nextZ, 20);
+                blocked = false;
+                if (colZ) {
+                     if (colZ.type === 'water' && !isAquatic) blocked = true;
+                     else if (colZ.type !== 'water') blocked = true;
+                }
+                if (!blocked) obj.group.position.z = nextZ;
+
+            } else {
+                obj.group.userData.statusSprites.flee.visible = false;
+                obj.group.userData.statusSprites.attack.visible = false;
+
+                if(Math.random() < 0.02) {
+                    obj.group.userData.dx = (Math.random() - 0.5) * 0.8;
+                    obj.group.userData.dz = (Math.random() - 0.5) * 0.8;
+                }
+                
+                let dx = obj.group.userData.dx || 0;
+                let dz = obj.group.userData.dz || 0;
+                
+                const nextX = obj.group.position.x + dx;
+                const nextZ = obj.group.position.z + dz;
+
+                const colX = this.checkCollision(nextX, obj.group.position.z, 20);
+                if (!colX) {
+                    obj.group.position.x = nextX;
+                } else {
+                    obj.group.userData.dx *= -1; 
+                }
+
+                const colZ = this.checkCollision(obj.group.position.x, nextZ, 20);
+                if (!colZ) {
+                    obj.group.position.z = nextZ;
+                } else {
+                    obj.group.userData.dz *= -1;
+                }
+            }
+        };
+        
+        obj.group.update.gameInstance = this;
+        this.gameInstance = this;
+
+        this.animals.push(obj.group);
+    }
+
+    createClouds() {
+        for (let i = 0; i < 30; i++) {
+            const x = (Math.random() - 0.5) * CONFIG.worldSize;
+            const z = (Math.random() - 0.5) * CONFIG.worldSize;
+            const y = 300 + Math.random() * 200;
+            const scale = 100 + Math.random() * 100;
+
+            const map = this.createEmojiTexture(CONFIG.emojis.cloud, 128);
+            const material = new THREE.SpriteMaterial({ map: map, transparent: true, opacity: 0.7 });
+            const sprite = new THREE.Sprite(material);
+            sprite.scale.set(scale, scale, 1);
+            sprite.position.set(x, y, z);
+            this.scene.add(sprite);
+        }
+    }
+
+    initInputs() {
+        window.addEventListener('resize', () => {
+            this.camera.aspect = window.innerWidth / window.innerHeight;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (this.chatOpen) {
+                if (e.code === 'Enter') {
+                    const input = document.getElementById('chat-input');
+                    const msg = input.value.trim();
+                    if(msg) this.sendChat(msg);
+                    input.value = '';
+                    input.blur();
+                    document.getElementById('chat-container').style.display = 'none';
+                    this.chatOpen = false;
+                }
+                return;
+            }
+
+            this.keys[e.code] = true;
+            
+            if (e.key === 'Shift') this.isRunning = true;
+            if (e.key === 'Control' || e.code === 'KeyC') this.isCrouching = true;
+
+            if (e.code === 'KeyI') {
+                this.toggleInventory();
+            }
+
+            if (e.code === 'Space') {
+                if (this.isDialogueOpen) {
+                    this.closeDialogue();
+                } else {
+                    this.playerAttack();
+                }
+            }
+            
+            if (e.code === 'Enter') {
+                document.getElementById('chat-container').style.display = 'block';
+                const input = document.getElementById('chat-input');
+                this.keys = {}; 
+                this.chatOpen = true;
+                setTimeout(() => input.focus(), 50);
+            }
+        });
+        
+        window.addEventListener('keyup', (e) => {
+            this.keys[e.code] = false;
+            if (e.key === 'Shift') this.isRunning = false;
+            if (e.key === 'Control' || e.code === 'KeyC') this.isCrouching = false;
+        });
+        
+        window.addEventListener('blur', () => { this.keys = {}; this.isRotating = false; });
+
+        window.addEventListener('mousedown', (e) => { if (e.button === 1) { this.isRotating = true; e.preventDefault(); } });
+        window.addEventListener('mouseup', (e) => { if (e.button === 1) { this.isRotating = false; } });
+
+        window.addEventListener('mousemove', (e) => {
+            this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            if (this.isDialogueOpen || this.isAlmanacOpen || this.chatOpen || this.isInventoryOpen) return;
+            
+            const isMoving = this.keys['KeyW'] || this.keys['KeyS'] || this.keys['KeyA'] || this.keys['KeyD'] || 
+                             this.keys['ArrowUp'] || this.keys['ArrowDown'] || this.keys['ArrowLeft'] || this.keys['ArrowRight'];
+
+            if (this.isRotating || isMoving) {
+                const sensitivity = this.sensitivityValues[this.sensitivityIndex];
+                this.cameraAngle -= e.movementX * sensitivity;
+                this.cameraPitch += e.movementY * sensitivity; 
+                this.cameraPitch = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, this.cameraPitch));
+            }
+        });
+
+        window.addEventListener('wheel', (e) => {
+            if (this.isDialogueOpen || this.isAlmanacOpen || this.isInventoryOpen) return;
+            const zoomSpeed = 0.5;
+            this.orbitRadius += e.deltaY * zoomSpeed;
+            this.orbitRadius = Math.max(50, Math.min(600, this.orbitRadius));
+        }, { passive: true });
+
+        window.addEventListener('click', (e) => this.onClick(e));
+
+        this.container.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                const dx = e.touches[0].pageX - e.touches[1].pageX;
+                const dy = e.touches[0].pageY - e.touches[1].pageY;
+                this.touchDistStart = Math.sqrt(dx*dx + dy*dy);
+            }
+        }, { passive: false });
+
+        this.container.addEventListener('touchmove', (e) => {
+            if (this.isDialogueOpen || this.isAlmanacOpen) return;
+            if (e.touches.length === 2) {
+                e.preventDefault(); 
+                const dx = e.touches[0].pageX - e.touches[1].pageX;
+                const dy = e.touches[0].pageY - e.touches[1].pageY;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                const delta = this.touchDistStart - dist;
+                this.orbitRadius += delta * 0.5;
+                this.orbitRadius = Math.max(50, Math.min(600, this.orbitRadius));
+                this.touchDistStart = dist;
+            }
+        }, { passive: false });
+    }
+
+    initUI() {
+        document.getElementById('sens-toggle').onclick = () => this.toggleSensitivity();
+        document.getElementById('close-dialogue').onclick = () => this.closeDialogue();
+        
+        document.getElementById('open-almanac').onclick = () => this.openAlmanac();
+        document.getElementById('close-almanac').onclick = () => { document.getElementById('almanac-modal').style.display = 'none'; this.isAlmanacOpen = false; };
+
+        // NEW Inventory
+        document.getElementById('open-inventory').onclick = () => this.toggleInventory();
+        document.getElementById('close-inventory').onclick = () => this.toggleInventory();
+
+        // Login Logic
+        const charGrid = document.getElementById('char-grid');
+        CONFIG.avatars.forEach((emoji, index) => {
+            const div = document.createElement('div');
+            div.className = 'char-option';
+            if (index === 0) div.classList.add('selected');
+            div.textContent = emoji;
+            div.onclick = () => {
+                document.querySelectorAll('.char-option').forEach(e => e.classList.remove('selected'));
+                div.classList.add('selected');
+                this.playerAvatar = emoji;
+            };
+            charGrid.appendChild(div);
+        });
+
+        document.getElementById('start-game-btn').onclick = () => {
+            const nameInput = document.getElementById('username-input');
+            const name = nameInput.value.trim() || "Player";
+            this.joinGame(name, this.playerAvatar);
+        };
+    }
+
+    toggleInventory() {
+        this.isInventoryOpen = !this.isInventoryOpen;
+        const modal = document.getElementById('inventory-modal');
+        if (this.isInventoryOpen) {
+            modal.style.display = 'flex';
+            this.keys = {}; // Stop moving
+            this.updateInventoryUI();
+        } else {
+            modal.style.display = 'none';
+        }
+    }
+
+    toggleSensitivity() {
+        this.sensitivityIndex = (this.sensitivityIndex + 1) % 3;
+        const btn = document.getElementById('sens-toggle');
+        btn.innerText = this.sensitivityLabels[this.sensitivityIndex];
+        this.showToast(`Sensitivity: ${['Low', 'Medium', 'High'][this.sensitivityIndex]}`);
+    }
+
+    closeDialogue() {
+        document.getElementById('dialogue-overlay').style.display = 'none';
+        this.isDialogueOpen = false;
+    }
+
+    showToast(message) {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.classList.add('show');
+        if (this.toastTimer) clearTimeout(this.toastTimer);
+        this.toastTimer = setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    updateHealthUI() {
+        const hearts = '❤️'.repeat(this.health) + '🤍'.repeat(3 - this.health);
+        document.getElementById('health-display').innerText = hearts;
+    }
+
+    takeDamage(lethal) {
+        const now = Date.now();
+        if (now - this.lastDamageTime < 1000) return; 
+        this.health--;
+        this.lastDamageTime = now;
+        this.updateHealthUI();
+        if (this.health <= 0) {
+            this.showToast("You fainted!");
+            this.respawn();
+        } else {
+            this.showToast("Ouch!");
+        }
+    }
+
+    respawn() {
+        this.player.position.set(0, 0, -250); 
+        this.health = 3;
+        this.updateHealthUI();
+        this.showToast("Woke up at home.");
+    }
+
+    checkHealing() {
+        const housePos = new THREE.Vector3(80, 0, -350);
+        const dist = this.player.position.distanceTo(housePos);
+        
+        if (dist < 120 && this.health < 3) {
+            this.health = 3;
+            this.updateHealthUI();
+            this.showToast("Health fully restored!");
+        }
+    }
+
+    // Interaction Methods (Must be top-level)
+    unlockAnimal(type) {
+        if (!this.unlockedAnimals.has(type)) {
+            this.unlockedAnimals.add(type);
+            this.showToast(`New discovery: ${CONFIG.emojis[type]}`);
+        }
+    }
+
+    showAnimalDialogue(animalType) {
+        const animal = ANIMAL_DATA[animalType];
+        if (!animal) return;
+        const fact = animal.facts[Math.floor(Math.random() * animal.facts.length)];
+        
+        document.getElementById('speaker-name').innerText = `${CONFIG.emojis[animalType]} ${animal.name}`;
+        document.getElementById('dialogue-text').innerText = fact;
+        document.getElementById('dialogue-overlay').style.display = 'flex';
+        this.isDialogueOpen = true;
+    }
+
+    showVillagerDialogue(villagerType) {
+        const villager = VILLAGER_DATA[villagerType];
+        if (!villager) return;
+        const line = villager.lines[Math.floor(Math.random() * villager.lines.length)];
+        
+        document.getElementById('speaker-name').innerText = `${CONFIG.emojis[villagerType]} ${villager.name}`;
+        document.getElementById('dialogue-text').innerText = line;
+        document.getElementById('dialogue-overlay').style.display = 'flex';
+        this.isDialogueOpen = true;
+    }
+
+    openAlmanac() {
+        this.isAlmanacOpen = true;
+        this.keys = {}; 
+        const modal = document.getElementById('almanac-modal');
+        const grid = document.getElementById('almanac-grid');
+        const details = document.getElementById('almanac-details');
+        
+        modal.style.display = 'flex';
+        grid.innerHTML = '';
+        details.innerHTML = '<div class="placeholder-text">Select an unlocked animal to view details.</div>';
+
+        Object.keys(ANIMAL_DATA).forEach(type => {
+            const isUnlocked = this.unlockedAnimals.has(type);
+            const slot = document.createElement('div');
+            slot.className = `animal-slot ${isUnlocked ? '' : 'locked'}`;
+            
+            const icon = document.createElement('span');
+            icon.textContent = CONFIG.emojis[type] || '❓';
+            slot.appendChild(icon);
+
+            if (isUnlocked) {
+                slot.onclick = () => {
+                    document.querySelectorAll('.animal-slot').forEach(s => s.classList.remove('active'));
+                    slot.classList.add('active');
+                    this.showAlmanacDetails(type);
+                };
+            }
+            grid.appendChild(slot);
+        });
+    }
+
+    getStringHash(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = (hash << 5) - hash + char;
+            hash = hash & hash; 
+        }
+        return Math.abs(hash);
+    }
+
+    showAlmanacDetails(type) {
+        const data = ANIMAL_DATA[type];
+        const container = document.getElementById('almanac-details');
+        
+        const lockId = this.getStringHash(type);
+        const searchTerm = data.imageKeyword || type;
+        const imageUrl = `https://loremflickr.com/600/350/${searchTerm}?lock=${lockId}`;
+        
+        container.innerHTML = `
+            <img src="${imageUrl}" class="detail-banner" alt="${data.name} Sketch" onerror="this.src='https://placehold.co/600x350/eee/333?text=Image+Not+Found'">
+            
+            <div class="detail-header">
+                <div class="detail-emoji">${CONFIG.emojis[type]}</div>
+                <div>
+                    <div class="detail-title">${data.name}</div>
+                    <div style="color: #888;">Discovered</div>
+                </div>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-item"><strong>Native To</strong>${data.native || 'Unknown'}</div>
+                <div class="stat-item"><strong>Population</strong>${data.population || 'Unknown'}</div>
+                <div class="stat-item"><strong>First Discovered</strong>${data.discovered || 'Unknown'}</div>
+                <div class="stat-item"><strong>Ancestor</strong>${data.ancestor || 'Unknown'}</div>
+                <div class="stat-item" style="grid-column: span 2;"><strong>Family</strong>${data.family || 'Unknown'}</div>
+            </div>
+
+            ${data.lifestyle ? `
+            <div>
+                <div class="section-title">Lifestyle & Habits</div>
+                <div class="detail-text">${data.lifestyle}</div>
+                <div class="detail-text" style="margin-top:5px;">${data.habits || ''}</div>
+            </div>
+            ` : ''}
+
+            <div>
+                <div class="section-title">Did you know?</div>
+                <ul class="detail-text" style="padding-left: 20px;">
+                    ${data.facts.map(f => `<li>${f}</li>`).join('')}
+                </ul>
+            </div>
+
+            <div>
+                <div class="section-title">In Society</div>
+                <div class="detail-text">${data.society}</div>
+            </div>
+        `;
+    }
+
+    playerAttack() {
+        let hitCount = 0;
+        const attackRange = 80;
+
+        this.animals.forEach(group => {
+            const dist = this.player.position.distanceTo(group.position);
+            
+            if (dist < attackRange) {
+                group.userData.hurtTimer = 300; 
+                
+                // DYNAMIC REACTION LOGIC
+                const temperament = group.userData.temperament;
+                let fightChance = 0.3; // Default for passive/skittish: 30% fight, 70% flight
+                
+                if (temperament === 'aggressive') {
+                    fightChance = 0.8; // Aggressive: 80% fight, 20% flight
+                }
+
+                // Determine reaction for this specific attack instance
+                if (Math.random() < fightChance) {
+                    group.userData.hurtReaction = 'chase';
+                    this.showToast(`Provoked! The ${group.userData.animalType} is angry!`);
+                } else {
+                    group.userData.hurtReaction = 'flee';
+                }
+
+                group.position.y += 10;
+                setTimeout(() => { group.position.y -= 10; }, 100);
+                
+                hitCount++;
+            }
+        });
+
+        if (hitCount > 0) {
+            // Toast handled per animal logic above for better feedback
+        } else {
+            // Missed
+        }
+    }
+
+    onClick(event) {
+        if (this.isDialogueOpen || this.isAlmanacOpen || this.isInventoryOpen) return;
+
+        this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        this.raycaster.setFromCamera(this.mouse, this.camera);
+
+        const intersects = this.raycaster.intersectObjects(this.scene.children, true);
+        
+        if (intersects.length > 0) {
+            
+            const hitItem = intersects.find(i => i.object.userData?.parentGroup?.userData.type === 'collectable');
+            if (hitItem) {
+                const group = hitItem.object.userData.parentGroup;
+                const dist = this.player.position.distanceTo(group.position);
+                if (dist < 100) {
+                    const itemId = group.userData.itemId;
+                    this.scene.remove(group);
+                    // Remove from collectables array
+                    const idx = this.collectables.indexOf(group);
+                    if (idx > -1) this.collectables.splice(idx, 1);
+                    
+                    this.addToInventory(itemId);
+                } else {
+                    this.showToast("Too far to pick up.");
+                }
+                return;
+            }
+
+            const hitEntity = intersects.find(i => {
+                const group = i.object.userData?.parentGroup;
+                if (!group) return false;
+                const type = group.userData.type;
+                return type === 'animal' || type === 'villager';
+            });
+            
+            if (hitEntity) {
+                const group = hitEntity.object.userData.parentGroup;
+                const type = group.userData.type; 
+                
+                const distance = this.player.position.distanceTo(group.position);
+                
+                if (distance < 300) {
+                    if (type === 'animal') {
+                        const state = group.userData.state;
+                        
+                        if (state === 'flee') {
+                            this.showToast("It's too scared to talk!");
+                            return;
+                        }
+                        if (state === 'chase') {
+                            this.showToast("It's attacking! Watch out!");
+                            return;
+                        }
+
+                        this.unlockAnimal(group.userData.animalType);
+                        this.showAnimalDialogue(group.userData.animalType);
+                    } else if (type === 'villager') {
+                        // Chance to give gift
+                        if (Math.random() < 0.3) {
+                             const gifts = ['apple', 'carrot', 'corn', 'seed'];
+                             const gift = gifts[Math.floor(Math.random() * gifts.length)];
+                             this.addToInventory(gift);
+                             this.showToast(`${CONFIG.emojis[type]} gave you a gift!`);
+                        }
+                        this.showVillagerDialogue(group.userData.villagerType);
+                    }
+                    return; 
+                } else {
+                    this.showToast("Too far! Move closer.");
+                    return;
+                }
+            }
+            
+            // Check Boat
+            const hitBoat = intersects.find(i => i.object.userData && i.object.parent && i.object.parent.userData.type === 'boat');
+            if (hitBoat) {
+                const boatGroup = hitBoat.object.parent;
+                const dist = this.player.position.distanceTo(boatGroup.position);
+                if (dist < 150) { 
+                    if (!this.isBoating) { this.isBoating = true; this.showToast("Boating Mode ON!"); } 
+                    else { 
+                        const distToPort = this.player.position.distanceTo(new THREE.Vector3(-80, 0, -350));
+                        if (distToPort < 100) { this.isBoating = false; this.player.position.set(-80, 2, -350); this.showToast("Dismounted at Port."); } 
+                        else { this.showToast("Too deep! Sail back to the Port."); }
+                    }
+                } else { this.showToast("Too far to board."); }
+            }
+        }
+    }
+
+    // ... [Rest of Update Loop and Render] ...
+    updatePlayer() {
+        // ... (existing update player logic - NO CHANGES NEEDED) ...
+        // Only update if joined
+        if (!this.isJoined) {
+            // Just orbit camera if not joined
+            this.cameraAngle += 0.002;
+            this.updateCameraFollow();
+            return;
+        }
+
+        if (this.isDialogueOpen || this.isAlmanacOpen || this.chatOpen || this.isInventoryOpen) return;
+
+        this.checkHealing(); 
+
+        if (!document.hasFocus()) {
+            this.keys = {};
+        }
+        this.syncPosition();
+
+        if (this.isCrouching) this.moveState = 'crouch'; else if (this.isRunning) this.moveState = 'run'; else this.moveState = 'walk';
+        document.getElementById('stance-display').innerText = this.moveState.toUpperCase();
+
+        const rotationSpeed = 0.03;
+        // Edge panning logic removed as per request to rely on Middle Mouse/Movement
+
+        let pushX = 0; let pushZ = 0; let overlapCount = 0; const playerRadius = 5;
+        const limit = CONFIG.worldSize / 2;
+        const isOffWorld = Math.abs(this.player.position.x) > limit || Math.abs(this.player.position.z) > limit;
+
+        if (isOffWorld && !this.isBoating) {
+            this.playerVelocityY -= 1.5;
+            this.player.position.y += this.playerVelocityY;
+            if (this.player.position.y < -25000) { this.showToast("You fell off the world!"); this.respawn(); this.playerVelocityY = 0; }
+            this.updateCameraFollow(); return; 
+        }
+        if (!this.isBoating) { this.player.position.y = 0; this.playerVelocityY = 0; }
+
+        const dynamicColliders = [ ...this.colliders, ...this.animals.map(a => ({ x: a.position.x, z: a.position.z, radius: 15, type: 'animal' })), ...this.villagers.map(v => ({ x: v.position.x, z: v.position.z, radius: 15, type: 'villager' })) ];
+
+        for (let c of dynamicColliders) {
+            if (this.isBoating && c.type === 'water') continue;
+            const dx = this.player.position.x - c.x; const dz = this.player.position.z - c.z; const dist = Math.sqrt(dx*dx + dz*dz); const minDist = c.radius + playerRadius;
+            if (dist < minDist) { const overlap = minDist - dist; const safeDist = dist || 1; const nx = dx / safeDist; const nz = dz / safeDist; pushX += nx * overlap; pushZ += nz * overlap; overlapCount++; }
+        }
+
+        if (overlapCount > 0) { this.player.position.x += (pushX / overlapCount) * 0.2; this.player.position.z += (pushZ / overlapCount) * 0.2; }
+
+        let speed = 4; if (this.isBoating) speed = 6; else if (this.moveState === 'run') speed = 8; else if (this.moveState === 'crouch') speed = 2;
+        const sin = Math.sin(this.cameraAngle); const cos = Math.cos(this.cameraAngle);
+        let inputZ = 0; let inputX = 0; 
+        if (this.keys['KeyW'] || this.keys['ArrowUp']) inputZ = 1; if (this.keys['KeyS'] || this.keys['ArrowDown']) inputZ = -1; if (this.keys['KeyA'] || this.keys['ArrowLeft']) inputX = -1; if (this.keys['KeyD'] || this.keys['ArrowRight']) inputX = 1;
+
+        if (inputX !== 0 || inputZ !== 0) {
+            const fwdX = -sin; const fwdZ = -cos; const rightX = cos; const rightZ = -sin;
+            let moveX = (inputZ * fwdX) + (inputX * rightX); let moveZ = (inputZ * fwdZ) + (inputX * rightZ);
+            const len = Math.sqrt(moveX*moveX + moveZ*moveZ); if (len > 0) { moveX = (moveX / len) * speed; moveZ = (moveZ / len) * speed; }
+
+            if (this.isBoating) {
+                const nextBX = this.boat.position.x + moveX; const nextBZ = this.boat.position.z + moveZ;
+                const distLake = Math.sqrt(Math.pow(nextBX - (-400), 2) + Math.pow(nextBZ - (-400), 2));
+                if (distLake < 340) { this.boat.position.x = nextBX; this.boat.position.z = nextBZ; this.boat.lookAt(this.boat.position.x + moveX, this.boat.position.y, this.boat.position.z + moveZ); }
+            } else {
+                const collisionRadius = 8;
+                const nextX = this.player.position.x + moveX; if (!this.checkCollision(nextX, this.player.position.z, collisionRadius)) { this.player.position.x = nextX; }
+                const nextZ = this.player.position.z + moveZ; if (!this.checkCollision(this.player.position.x, nextZ, collisionRadius)) { this.player.position.z = nextZ; }
+            }
+        }
+
+        if (this.isBoating) { this.player.position.copy(this.boat.position); this.player.position.y = 10; } 
+        else { if (this.moveState === 'crouch') { this.player.scale.y = 0.7; this.player.position.y = -5; } else { this.player.scale.y = 1; this.player.position.y = 0; } }
+
+        this.collectables.forEach(c => c.update()); // Animate items
+        this.updateCameraFollow();
+    }
+
+    updateCameraFollow() {
+        // If not joined, orbit around center
+        if (!this.isJoined) {
+            const orbitRadius = 400;
+            this.camera.position.x = Math.sin(this.cameraAngle) * orbitRadius;
+            this.camera.position.z = Math.cos(this.cameraAngle) * orbitRadius;
+            this.camera.position.y = 300;
+            this.camera.lookAt(0, 0, 0);
+            return;
+        }
+
+        const orbitRadius = this.orbitRadius;
+        const yOffset = Math.sin(this.cameraPitch) * orbitRadius;
+        const hDistance = Math.cos(this.cameraPitch) * orbitRadius; 
+        const targetCamX = this.player.position.x + Math.sin(this.cameraAngle) * hDistance;
+        const targetCamZ = this.player.position.z + Math.cos(this.cameraAngle) * hDistance;
+        const targetCamY = this.player.position.y + yOffset; 
+        this.camera.position.x += (targetCamX - this.camera.position.x) * 0.1;
+        this.camera.position.z += (targetCamZ - this.camera.position.z) * 0.1;
+        this.camera.position.y += (targetCamY - this.camera.position.y) * 0.1;
+        this.camera.lookAt(this.player.position.x, this.player.position.y + 20, this.player.position.z);
+    }
+
+    animate() {
+        requestAnimationFrame(this.animate);
+        this.updatePlayer();
+        this.animals.forEach(a => a.update && a.update());
+        for (const pid in this.remotePlayers) { const rp = this.remotePlayers[pid]; rp.mesh.position.lerp(rp.targetPos, 0.1); }
+        this.renderer.render(this.scene, this.camera);
+    }
+}
+
+window.onload = () => {
+    const game = new Game3D();
+};
+</script>
+</body>
+</html>
