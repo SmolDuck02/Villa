@@ -345,6 +345,7 @@ body {
     color: rgba(255,255,255,0.5);
 }
 
+
 #chat-history {
     position: absolute;
     bottom: 70px; /* Lifted above input */
@@ -382,6 +383,43 @@ body {
     border-left: 3px solid var(--ui-border);
 }
 
+
+#chat-historyBK {
+    position: absolute;
+    bottom: 70px; /* Lifted above input */
+    left: 20px;
+    width: 320px;
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    pointer-events: auto;
+    z-index: 95;
+    
+    /* Subtle background container for history */
+    background: linear-gradient(to top, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0) 100%);
+    padding: 10px;
+    border-radius: 10px;
+    
+    /* Scrollbar styling */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.3) transparent;
+}
+
+.chat-msgBK {
+    padding: 4px 8px;
+    margin-bottom: 4px;
+    border-radius: 4px;
+    color: rgba(255,255,255,0.9);
+    font-size: 13px;
+    text-shadow: 1px 1px 1px black;
+    align-self: flex-start;
+    animation: fadeInChat 0.2s ease-out;
+    word-wrap: break-word;
+    max-width: 100%;
+}
+
 .chat-msg strong {
     margin-right: 5px;
 }
@@ -410,7 +448,7 @@ body {
     z-index: 20;
 }
 
-/* --- IMPROVED INVENTORY UI --- */
+/* --- IMPROVED INVENTORY UI (VERTICAL LIST) --- */
 
 #inventory-modal {
     position: absolute;
@@ -418,8 +456,8 @@ body {
     left: 50%;
     transform: translate(-50%, -50%);
     width: 90%;
-    max-width: 500px;
-    height: 60%;
+    max-width: 400px; /* Slimmer for vertical list */
+    height: 70%;
     
     /* Dark Theme */
     background: var(--inv-bg);
@@ -478,63 +516,71 @@ body {
 .modal-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
 .modal-body::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
 
-.inv-grid-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
-    gap: 12px;
+/* LIST STYLE INVENTORY */
+.inv-list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
-.inv-slot {
-    aspect-ratio: 1;
+.inv-item-row {
     background: var(--inv-slot-bg);
     border: 1px solid var(--inv-slot-border);
     border-radius: 12px;
     display: flex;
-    flex-direction: column;
     align-items: center;
-    justify-content: center;
+    padding: 10px;
     cursor: pointer;
-    position: relative;
     transition: all 0.15s ease;
-    box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
 }
 
-.inv-slot:hover {
+.inv-item-row:hover {
     background: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.3);
-    transform: translateY(-2px);
+    transform: translateX(5px);
 }
 
-/* EQUIPPED STATE (Replaces JS inline styles) */
-.inv-slot.equipped {
+.inv-item-row.equipped {
     background: rgba(255, 215, 0, 0.15); /* Gold tint */
     border: 2px solid var(--inv-accent);
-    box-shadow: 0 0 15px rgba(255, 215, 0, 0.3), inset 0 0 10px rgba(0,0,0,0.5);
-    animation: pulseEquip 2s infinite;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
 }
 
-@keyframes pulseEquip {
-    0% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.3), inset 0 0 10px rgba(0,0,0,0.5); }
-    50% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.5), inset 0 0 10px rgba(0,0,0,0.5); }
-    100% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.3), inset 0 0 10px rgba(0,0,0,0.5); }
-}
-
-.inv-icon { 
-    font-size: 36px; 
+.inv-icon-large { 
+    font-size: 32px; 
+    margin-right: 15px;
     filter: drop-shadow(0 4px 4px rgba(0,0,0,0.3));
+    width: 40px;
+    text-align: center;
 }
 
-.inv-count {
-    position: absolute;
-    bottom: 5px;
-    right: 5px;
-    background: rgba(0, 0, 0, 0.7);
+.inv-details {
+    flex: 1;
+}
+
+.inv-name {
+    font-weight: bold;
     color: #fff;
-    font-size: 11px;
-    padding: 2px 6px;
-    border-radius: 10px;
+    font-size: 16px;
+    margin-bottom: 2px;
+}
+
+.inv-desc {
+    color: rgba(255,255,255,0.6);
+    font-size: 12px;
+}
+
+.inv-count-badge {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-size: 14px;
+    padding: 4px 10px;
+    border-radius: 20px;
     font-weight: bold;
     border: 1px solid rgba(255, 255, 255, 0.2);
+    min-width: 20px;
+    text-align: center;
 }
 
 /* ALMANAC MODAL (Lightly refreshed to match) */

@@ -78,9 +78,7 @@ export class UIManager {
         const grid = document.getElementById('inventory-grid');
         grid.innerHTML = '';
         
-        // -- ADD GUIDE BUTTON --
-        // Check if button exists, if not add it to modal header or top of body
-        // Let's add a Guide button at the top of the inventory body
+        // Guide Button
         const guideBtn = document.createElement('button');
         guideBtn.textContent = "📖 Item Guide";
         guideBtn.style.width = "100%";
@@ -91,21 +89,18 @@ export class UIManager {
         guideBtn.style.color = "white";
         guideBtn.style.borderRadius = "8px";
         guideBtn.style.cursor = "pointer";
-        guideBtn.onclick = () => this.toggleItemGuide(grid); // Pass grid to hide/show
+        guideBtn.onclick = () => this.toggleItemGuide(grid); 
         grid.appendChild(guideBtn);
         
-        // Container for items (so we can clear just items, not button)
+        // Container for items (Vertical List)
         const itemsContainer = document.createElement('div');
-        itemsContainer.className = 'inv-items-wrapper'; // New class or reuse grid style
-        itemsContainer.style.display = 'grid';
-        itemsContainer.style.gridTemplateColumns = 'repeat(auto-fill, minmax(70px, 1fr))';
-        itemsContainer.style.gap = '12px';
+        itemsContainer.className = 'inv-list-container'; // Changed from grid to list wrapper
         grid.appendChild(itemsContainer);
 
         const items = Object.keys(this.game.inventory);
         
         if (items.length === 0) {
-            itemsContainer.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:20px; color:rgba(255,255,255,0.5); font-style:italic;">Backpack is empty.<br>Explore the world to find items!</div>';
+            itemsContainer.innerHTML = '<div style="text-align:center; padding:20px; color:rgba(255,255,255,0.5); font-style:italic;">Backpack is empty.<br>Explore the world to find items!</div>';
             return;
         }
 
@@ -113,34 +108,37 @@ export class UIManager {
             const count = this.game.inventory[id];
             if (count > 0) {
                 const data = ITEM_DATA[id] || { name: id, desc: "" };
-                const slot = document.createElement('div');
-                slot.className = 'inv-slot';
+                const row = document.createElement('div');
+                row.className = 'inv-item-row'; // New class for horizontal row style
                 
-                // Use CSS class for selected state instead of inline styles
                 if (this.game.heldItem === id) {
-                    slot.classList.add('equipped');
+                    row.classList.add('equipped');
                 }
 
-                slot.innerHTML = `<div class="inv-icon">${CONFIG.emojis[id] || '❓'}</div><div class="inv-count">${count}</div>`;
-                slot.title = `${data.name}: ${data.desc}`;
+                // New Layout: Icon | Details | Count
+                row.innerHTML = `
+                    <div class="inv-icon-large">${CONFIG.emojis[id] || '❓'}</div>
+                    <div class="inv-details">
+                        <div class="inv-name">${data.name}</div>
+                        <div class="inv-desc">${data.desc}</div>
+                    </div>
+                    <div class="inv-count-badge">x${count}</div>
+                `;
                 
-                slot.onclick = () => {
+                row.onclick = () => {
                     // Toggle selection
                     this.game.heldItem = (this.game.heldItem === id) ? null : id;
                     this.showToast(this.game.heldItem ? `Equipped: ${data.name}` : "Unequipped");
-                    this.refreshAll(); // Update both inventory and hotbar visual state
+                    this.refreshAll(); // Update UI
                 };
-                itemsContainer.appendChild(slot);
+                itemsContainer.appendChild(row);
             }
         });
     }
     
-    // NEW: Toggle Item Guide View
     toggleItemGuide(container) {
-        // Clear current view
         container.innerHTML = '';
         
-        // Add "Back" button
         const backBtn = document.createElement('button');
         backBtn.textContent = "⬅ Back to Inventory";
         backBtn.style.width = "100%";
@@ -154,7 +152,6 @@ export class UIManager {
         backBtn.onclick = () => this.updateInventoryUI();
         container.appendChild(backBtn);
         
-        // Render Item List
         const list = document.createElement('div');
         list.style.display = 'flex';
         list.style.flexDirection = 'column';
@@ -182,7 +179,6 @@ export class UIManager {
         container.appendChild(list);
     }
 
-    // Renders the first 9 available items into the hotbar
     updateHotbarUI() {
         const hotbar = document.getElementById('hotbar');
         if(!hotbar) return;
@@ -190,13 +186,12 @@ export class UIManager {
         
         const items = Object.keys(this.game.inventory);
         
-        // Always show 9 slots, even if empty
         for (let i = 0; i < 9; i++) {
             const slot = document.createElement('div');
             slot.className = 'hotbar-slot';
-            slot.dataset.key = i + 1; // For CSS number indicator (1-9)
+            slot.dataset.key = i + 1;
             
-            const itemId = items[i]; // Simple mapping: 1st item = slot 1
+            const itemId = items[i];
             
             if (itemId && this.game.inventory[itemId] > 0) {
                 const count = this.game.inventory[itemId];
@@ -205,15 +200,12 @@ export class UIManager {
                     <div class="slot-count">${count}</div>
                 `;
                 
-                // Click to select/deselect
                 slot.onclick = () => this.selectHotbarSlot(i);
                 
-                // Visual selected state
                 if (this.game.heldItem === itemId) {
                     slot.classList.add('selected');
                 }
             } else {
-                // Empty slot styling
                 slot.style.opacity = '0.3';
                 slot.style.cursor = 'default';
             }
@@ -222,12 +214,10 @@ export class UIManager {
         }
     }
     
-    // Helper to select item by index (0-8)
     selectHotbarSlot(index) {
         const items = Object.keys(this.game.inventory);
         if (index < items.length) {
             const itemId = items[index];
-            // Toggle logic: if already held, unequip. If different, equip.
             this.game.heldItem = (this.game.heldItem === itemId) ? null : itemId;
             
             const name = ITEM_DATA[itemId] ? ITEM_DATA[itemId].name : itemId;
@@ -245,7 +235,6 @@ export class UIManager {
         modal.style.display = 'flex';
         grid.innerHTML = '';
         
-        // REMOVED: Guide button from Almanac (moved to Inventory)
         details.innerHTML = '<div class="placeholder-text">Select an unlocked animal to view details.</div>';
 
         Object.keys(ANIMAL_DATA).forEach(type => {
@@ -272,7 +261,6 @@ export class UIManager {
         const searchTerm = data.imageKeyword || type;
         const imageUrl = `https://loremflickr.com/600/350/${searchTerm}?lock=${lockId}`;
         
-        // Re-add the button to go back to guide if needed, or just standard view
         container.innerHTML = `
             <img src="${imageUrl}" class="detail-banner" alt="${data.name} Sketch">
             <div class="detail-header"><div class="detail-emoji">${CONFIG.emojis[type]}</div><div><div class="detail-title">${data.name}</div><div style="color: #888;">Discovered</div></div></div>
@@ -306,7 +294,6 @@ export class UIManager {
         }
     }
     
-    // NEW: Add message to local history log (Visuals)
     addChatLog(name, msg) {
         const history = document.getElementById('chat-history');
         if (!history) return;
@@ -325,7 +312,7 @@ export class UIManager {
         const msg = input.value.trim();
         if(msg) {
             this.game.network.sendChat(msg);
-            this.addChatLog("Me", msg); // Echo locally
+            this.addChatLog("Me", msg); 
         }
         input.value = '';
         input.blur();

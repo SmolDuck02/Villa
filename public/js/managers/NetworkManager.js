@@ -95,12 +95,13 @@ export class NetworkManager {
     }
 
     onPlayerUpdate(snapshot) {
-        // NOTE: We update the counter at the end of this function or in the game loop 
-        // to reflect actual active players, not just DB entries.
-        
+        if (!this.userId) return; // Wait until we are fully logged in
+
         snapshot.docChanges().forEach((change) => {
             const pid = change.doc.id;
-            if (pid === this.userId) return; // Ignore self
+            
+            // STRICT FILTER: Never process our own ID
+            if (pid === this.userId) return; 
             
             const data = change.doc.data();
             
@@ -172,8 +173,8 @@ export class NetworkManager {
     cleanupStalePlayers() {
         if (!this.db) return;
         const now = Date.now();
-        const STALE_THRESHOLD = 10000; // 10 seconds locally = visual remove
-        const DELETE_THRESHOLD = 30000; // 30 seconds = delete from DB
+        const STALE_THRESHOLD = 5000; // 5 seconds locally = visual remove (Faster cleanup)
+        const DELETE_THRESHOLD = 15000; // 15 seconds = delete from DB
 
         Object.keys(this.remotePlayers).forEach(pid => {
             const rp = this.remotePlayers[pid];
@@ -184,8 +185,6 @@ export class NetworkManager {
                 this.removeRemotePlayer(pid);
                 
                 // 2. Database Cleanup (Garbage Collection)
-                // Only try to delete if it's REALLY old to avoid fighting
-                // Use the server timestamp for this check if possible
                 const serverAge = now - (rp.serverTimestamp || 0);
                 if (serverAge > DELETE_THRESHOLD) {
                      console.log(`[MMO] Deleting zombie player from DB: ${pid}`);
